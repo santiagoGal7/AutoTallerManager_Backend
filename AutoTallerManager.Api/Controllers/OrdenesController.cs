@@ -89,4 +89,15 @@ public class OrdenesController : ControllerBase
         }
         return Ok(resumen);
     }
+
+    [HttpPost("facturar")]
+    public async Task<IActionResult> FacturarOrden([FromBody] GenerarFacturaDto dto)
+    {
+        var error = await _ordenServicioService.FacturarYCerrarOrdenAsync(dto);
+        if (error != null)
+        {
+            return BadRequest(new { mensaje = error });
+        }
+        return Ok(new { exitoso = true, mensaje = "Factura generada con éxito. La orden de servicio ha sido cerrada." });
+    }
 }

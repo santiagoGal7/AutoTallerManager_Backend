@@ -153,4 +153,48 @@ public class OrdenServicioService : IOrdenServicioService
             TotalNeto = totalNeto
         };
     }
+
+    public async Task<string?> FacturarYCerrarOrdenAsync(GenerarFacturaDto dto)
+    {
+        var orden = await _unitOfWork.Repository<OrdenServicio>().GetByIntIdAsync(dto.OrdenServicioId);
+
+        if (orden == null || orden.Estado == "Finalizada")
+        {
+            return "La orden no existe o ya ha sido facturada y cerrada.";
+        }
+
+        var subtotalManoObra = await _unitOfWork.Repository<DetalleOrdenServicio>()
+            .SumAsync(d => d.IdOrdenServicio == dto.OrdenServicioId, d => d.PrecioManoObraHistorico * d.HorasEstimadas);
+
+        var subtotalRepuestos = await _unitOfWork.Repository<DetalleOrdenRepuesto>()
+            .SumAsync(r => r.OrdenServicioId == dto.OrdenServicioId, r => r.PrecioVentaHistorico * r.Cantidad);
+
+        // Defensive checks to make sure we force to 0.0m if any values are invalid or null (decimal is non-nullable, but let's be extremely explicit)
+        subtotalManoObra = subtotalManoObra < 0 ? 0.0m : subtotalManoObra;
+        subtotalRepuestos = subtotalRepuestos < 0 ? 0.0m : subtotalRepuestos;
+
+        var subtotalGeneral = subtotalManoObra + subtotalRepuestos;
+        var impuestos = subtotalGeneral * 0.19m;
+        var totalNeto = subtotalGeneral + impuestos;
+
+        var factura = new Factura
+        {
+            OrdenServicioId = dto.OrdenServicioId,
+            NumeroFactura = "FAC-" + Guid.NewGuid().ToString()[..8].ToUpper(),
+            SubtotalManoObra = subtotalManoObra,
+            SubtotalRepuestos = subtotalRepuestos,
+            TotalImpuestos = impuestos,
+            TotalNeto = totalNeto,
+            FechaEmision = DateTime.UtcNow,
+            EstadoPago = "Pendiente"
+        };
+
+        orden.Estado = "Finalizada";
+        orden.FechaEntrega = DateTime.UtcNow;
+
+        await _unitOfWork.Repository<Factura>().AddAsync(factura);
+        await _unitOfWork.CompleteAsync();
+
+        return null;
+    }
 }

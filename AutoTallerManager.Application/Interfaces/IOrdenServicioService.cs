@@ -9,4 +9,5 @@ public interface IOrdenServicioService
     Task<bool> AgregarServicioAOrdenAsync(AgregarServicioOrdenDto dto);
     Task<string?> AgregarRepuestoAOrdenAsync(AgregarRepuestoOrdenDto dto);
     Task<ResumenTotalesOrdenDto?> CalcularTotalesOrdenAsync(int ordenId);
+    Task<string?> FacturarYCerrarOrdenAsync(GenerarFacturaDto dto);
 }
