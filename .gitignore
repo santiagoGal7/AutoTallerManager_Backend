@@ -1,0 +1,29 @@
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Re]leases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+log/
+[Ll]og/
+
+# Visual Studio cache and user-specific directories
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+
+# Directory-specific builds
+**/[Bb]in/
+**/[Oo]bj/
+
+# IDE directories
+.idea/
+.vscode/

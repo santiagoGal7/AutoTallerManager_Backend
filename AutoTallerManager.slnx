@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AutoTallerManager.Api/AutoTallerManager.Api.csproj" />
+  <Project Path="AutoTallerManager.Application/AutoTallerManager.Application.csproj" />
+  <Project Path="AutoTallerManager.Domain/AutoTallerManager.Domain.csproj" />
+  <Project Path="AutoTallerManager.Infrastructure/AutoTallerManager.Infrastructure.csproj" />
+</Solution>
