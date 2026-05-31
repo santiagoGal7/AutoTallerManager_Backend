@@ -34,6 +34,11 @@ public class Repository<T> : IRepository<T> where T : class
         return await Context.Set<T>().AnyAsync(predicate);
     }
 
+    public async Task<decimal> SumAsync(Expression<Func<T, bool>> predicate, Expression<Func<T, decimal>> selector)
+    {
+        return await Context.Set<T>().Where(predicate).SumAsync(selector);
+    }
+
     public async Task AddAsync(T entity)
     {
         await Context.Set<T>().AddAsync(entity);

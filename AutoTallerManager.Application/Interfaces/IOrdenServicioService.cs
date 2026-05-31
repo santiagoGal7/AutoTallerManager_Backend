@@ -8,4 +8,5 @@ public interface IOrdenServicioService
     Task<OrdenServicioResponseDto> RegistrarOrdenAsync(CrearOrdenServicioDto dto);
     Task<bool> AgregarServicioAOrdenAsync(AgregarServicioOrdenDto dto);
     Task<string?> AgregarRepuestoAOrdenAsync(AgregarRepuestoOrdenDto dto);
+    Task<ResumenTotalesOrdenDto?> CalcularTotalesOrdenAsync(int ordenId);
 }

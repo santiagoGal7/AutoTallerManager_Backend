@@ -78,4 +78,15 @@ public class OrdenesController : ControllerBase
 
         return Ok(new { exitoso = true, mensaje = "Repuesto asociado a la orden con éxito." });
     }
+
+    [HttpGet("{id}/totales")]
+    public async Task<IActionResult> GetTotalesOrden(int id)
+    {
+        var resumen = await _ordenServicioService.CalcularTotalesOrdenAsync(id);
+        if (resumen == null)
+        {
+            return NotFound(new { mensaje = "La orden de servicio especificada no existe." });
+        }
+        return Ok(resumen);
+    }
 }

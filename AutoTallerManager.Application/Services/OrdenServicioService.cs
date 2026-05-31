@@ -123,4 +123,34 @@ public class OrdenServicioService : IOrdenServicioService
 
         return null; // Indica que no hubo errores
     }
+
+    public async Task<ResumenTotalesOrdenDto?> CalcularTotalesOrdenAsync(int ordenId)
+    {
+        var existeOrden = await _unitOfWork.Repository<OrdenServicio>()
+            .AnyAsync(o => o.Id == ordenId);
+
+        if (!existeOrden)
+        {
+            return null;
+        }
+
+        var subtotalManoObra = await _unitOfWork.Repository<DetalleOrdenServicio>()
+            .SumAsync(d => d.IdOrdenServicio == ordenId, d => d.PrecioManoObraHistorico * d.HorasEstimadas);
+
+        var subtotalRepuestos = await _unitOfWork.Repository<DetalleOrdenRepuesto>()
+            .SumAsync(r => r.OrdenServicioId == ordenId, r => r.PrecioVentaHistorico * r.Cantidad);
+
+        var subtotalGeneral = subtotalManoObra + subtotalRepuestos;
+        var impuestos = subtotalGeneral * 0.19m;
+        var totalNeto = subtotalGeneral + impuestos;
+
+        return new ResumenTotalesOrdenDto
+        {
+            OrdenServicioId = ordenId,
+            SubtotalManoObra = subtotalManoObra,
+            SubtotalRepuestos = subtotalRepuestos,
+            Impuestos = impuestos,
+            TotalNeto = totalNeto
+        };
+    }
 }
