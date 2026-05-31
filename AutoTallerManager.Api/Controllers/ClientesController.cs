@@ -1,5 +1,8 @@
 using AutoTallerManager.Application.DTOs.Clientes;
+using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Application.Services;
+using AutoTallerManager.Domain.Entities;
+using Mapster;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutoTallerManager.Api.Controllers;
@@ -9,10 +12,12 @@ namespace AutoTallerManager.Api.Controllers;
 public class ClientesController : ControllerBase
 {
     private readonly IClienteService _clienteService;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public ClientesController(IClienteService clienteService)
+    public ClientesController(IClienteService clienteService, IUnitOfWork unitOfWork)
     {
         _clienteService = clienteService ?? throw new ArgumentNullException(nameof(clienteService));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     [HttpPost("registrar-con-vehiculo")]
@@ -36,5 +41,17 @@ public class ClientesController : ControllerBase
         {
             return StatusCode(500, "Ocurrió un error interno en el servidor al procesar el registro.");
         }
+    }
+
+    [HttpGet("listar-vehiculos")]
+    public async Task<IActionResult> ListarVehiculos()
+    {
+        // Usar el repositorio para traer los carros reales de Supabase
+        var vehiculos = await _unitOfWork.Repository<Vehiculo>().GetAllAsync();
+        
+        // Mapear para evitar problemas de referencias circulares JSON
+        var respuesta = vehiculos.Adapt<List<VehiculoResponseDto>>();
+        
+        return Ok(respuesta);
     }
 }

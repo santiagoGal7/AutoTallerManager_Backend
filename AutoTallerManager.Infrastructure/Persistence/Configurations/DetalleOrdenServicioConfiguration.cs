@@ -21,7 +21,7 @@ public class DetalleOrdenServicioConfiguration : IEntityTypeConfiguration<Detall
 
         // Relación Muchos a Uno con la Orden Madre (Cascada: Si cae la orden, cae su desglose)
         builder.HasOne(dos => dos.OrdenServicio)
-            .WithMany(os => os.DetallesServicio)
+            .WithMany()
             .HasForeignKey(dos => dos.IdOrdenServicio)
             .OnDelete(DeleteBehavior.Cascade);
 

@@ -27,52 +27,74 @@ public class ClienteService : IClienteService
         }
 
         // b) Si el correo es único, mapear el DTO a la entidad de dominio 'Cliente'.
-        var cliente = new Cliente
+        var nuevoCliente = new Cliente
         {
             Nombre = dto.Nombre,
             Telefono = dto.Telefono,
             Correo = dto.Correo,
-            FechaRegistro = DateTime.UtcNow
+            FechaRegistro = DateTime.UtcNow,
+            Vehiculos = new List<Vehiculo>() // Inicializar la lista limpia
         };
 
-        // c) Si el DTO incluye un vehículo inicial, mapearlo a la entidad 'Vehiculo' y asociarlo al cliente respetando la propiedad de navegación.
-        Vehiculo? vehiculo = null;
+        // c) Mapear manualmente los vehículos del DTO a la entidad de dominio (soporta tanto DTO único como colección)
         if (dto.VehiculoInicial != null)
         {
-            vehiculo = new Vehiculo
+            var vehiculo = new Vehiculo
             {
                 Marca = dto.VehiculoInicial.Marca,
                 Modelo = dto.VehiculoInicial.Modelo,
                 Anio = dto.VehiculoInicial.Anio,
                 VIN = dto.VehiculoInicial.VIN,
-                Cliente = cliente
+                Cliente = nuevoCliente, // Relación al padre explícita
+                HistorialesKilometraje = new List<HistorialKilometraje>()
             };
 
-            var historialKilometraje = new HistorialKilometraje
+            var historial = new HistorialKilometraje
             {
                 Kilometraje = dto.VehiculoInicial.Kilometraje,
                 FechaLectura = DateTime.UtcNow,
                 OrigenLectura = "Registro Inicial",
                 Vehiculo = vehiculo
             };
+            vehiculo.HistorialesKilometraje.Add(historial);
 
-            vehiculo.HistorialesKilometraje.Add(historialKilometraje);
-            cliente.Vehiculos.Add(vehiculo);
+            nuevoCliente.Vehiculos.Add(vehiculo);
         }
 
-        // d) Invocar 'await _unitOfWork.Repository<Cliente>().AddAsync(cliente)'.
-        await _unitOfWork.Repository<Cliente>().AddAsync(cliente);
-
-        // e) Si el vehículo existe, persistirlo de igual forma en su respectivo repositorio.
-        if (vehiculo != null)
+        if (dto.Vehiculos != null && dto.Vehiculos.Any())
         {
-            await _unitOfWork.Repository<Vehiculo>().AddAsync(vehiculo);
+            foreach (var vDto in dto.Vehiculos)
+            {
+                var vehiculo = new Vehiculo
+                {
+                    Marca = vDto.Marca,
+                    Modelo = vDto.Modelo,
+                    Anio = vDto.Anio,
+                    VIN = vDto.VIN,
+                    Cliente = nuevoCliente, // Relación al padre explícita
+                    HistorialesKilometraje = new List<HistorialKilometraje>()
+                };
+
+                var historial = new HistorialKilometraje
+                {
+                    Kilometraje = vDto.Kilometraje,
+                    FechaLectura = DateTime.UtcNow,
+                    OrigenLectura = "Registro Inicial",
+                    Vehiculo = vehiculo
+                };
+                vehiculo.HistorialesKilometraje.Add(historial);
+
+                nuevoCliente.Vehiculos.Add(vehiculo);
+            }
         }
 
-        // f) Confirmar la transacción atómica llamando a 'await _unitOfWork.CompleteAsync()'.
+        // d) Guardar la entidad raíz (guardará automáticamente toda la cascada en la misma transacción)
+        await _unitOfWork.Repository<Cliente>().AddAsync(nuevoCliente);
+        
+        // e) Confirmar la transacción atómica
         await _unitOfWork.CompleteAsync();
 
-        // g) Retornar el 'ClienteResponseDto' mapeado mediante Mapster.
-        return cliente.Adapt<ClienteResponseDto>();
+        // f) Retornar la respuesta mapeando mediante Mapster
+        return nuevoCliente.Adapt<ClienteResponseDto>();
     }
 }

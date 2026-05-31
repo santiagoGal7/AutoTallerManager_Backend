@@ -6,4 +6,5 @@ public class CrearClienteDto
     public string Telefono { get; set; } = string.Empty;
     public string Correo { get; set; } = string.Empty;
     public CrearVehiculoDto? VehiculoInicial { get; set; }
+    public List<CrearVehiculoDto>? Vehiculos { get; set; }
 }

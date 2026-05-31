@@ -24,6 +24,8 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 // REGISTRO DE SERVICIOS DE APLICACIÓN Y MAPSTER
 builder.Services.AddScoped<IClienteService, ClienteService>();
+builder.Services.AddScoped<IOrdenServicioService, OrdenServicioService>();
+builder.Services.AddScoped<IServicioTallerService, ServicioTallerService>();
 MapsterConfig.RegisterMappings();
 
 var app = builder.Build();
