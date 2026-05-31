@@ -1,4 +1,8 @@
+using AutoTallerManager.Application.Interfaces;
+using AutoTallerManager.Application.Services;
+using AutoTallerManager.Application.Configuration;
 using AutoTallerManager.Infrastructure.Persistence;
+using AutoTallerManager.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +17,14 @@ var connectionString = builder.Configuration.GetConnectionString("PostgresConnec
 builder.Services.AddDbContext<AutoTallerDbContext>(options =>
     options.UseNpgsql(connectionString, b => 
         b.MigrationsAssembly("AutoTallerManager.Infrastructure"))); // Define dónde se guardarán físicamente las migraciones
+
+// REGISTRO DE PATRONES DE PERSISTENCIA (REPOSITORIO GENÉRICO Y UNIT OF WORK)
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// REGISTRO DE SERVICIOS DE APLICACIÓN Y MAPSTER
+builder.Services.AddScoped<IClienteService, ClienteService>();
+MapsterConfig.RegisterMappings();
 
 var app = builder.Build();
 
