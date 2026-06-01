@@ -91,6 +91,25 @@ public class ClienteService : IClienteService
         // d) Guardar la entidad raíz (guardará automáticamente toda la cascada en la misma transacción)
         await _unitOfWork.Repository<Cliente>().AddAsync(nuevoCliente);
         
+        // AUTOMÁTICAMENTE CREAR VÍNCULO CON LA TABLA DE USUARIOS PARA ROL "Cliente"
+        var usuarioRepository = _unitOfWork.Repository<Usuario>();
+        var todosUsuarios = await usuarioRepository.GetAllAsync();
+        var existeUsuario = todosUsuarios.Any(u => u.Correo.ToLower() == dto.Correo.ToLower());
+        if (!existeUsuario)
+        {
+            var nuevoUsuario = new Usuario
+            {
+                Nombre = dto.Nombre,
+                Correo = dto.Correo,
+                Rol = "Cliente",
+                Activo = true
+            };
+            var passwordHasher = new Microsoft.AspNetCore.Identity.PasswordHasher<Usuario>();
+            nuevoUsuario.ContrasenaHash = passwordHasher.HashPassword(nuevoUsuario, "Cliente123*");
+            
+            await usuarioRepository.AddAsync(nuevoUsuario);
+        }
+
         // e) Confirmar la transacción atómica
         await _unitOfWork.CompleteAsync();
 

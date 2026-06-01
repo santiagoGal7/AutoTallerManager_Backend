@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs;
 using AutoTallerManager.Application.Services;
 using AutoTallerManager.Application.Interfaces;
+using AutoTallerManager.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,18 +13,20 @@ namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin,Mecanico,Recepcionista")]
+[Authorize(Roles = "Admin,Mecanico,Recepcionista,Cliente")]
 public class OrdenesController : ControllerBase
 {
     private readonly IOrdenServicioService _ordenServicioService;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public OrdenesController(IOrdenServicioService ordenServicioService)
+    public OrdenesController(IOrdenServicioService ordenServicioService, IUnitOfWork unitOfWork)
     {
         _ordenServicioService = ordenServicioService ?? throw new ArgumentNullException(nameof(ordenServicioService));
+        _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
     [HttpPost("abrir")]
-    [Authorize(Policy = "RequireRecepcionistaRole")]
+    [Authorize(Roles = "Admin,Recepcionista")]
     public async Task<IActionResult> AbrirOrden([FromBody] CrearOrdenServicioDto dto)
     {
         if (!ModelState.IsValid)
@@ -39,7 +44,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("agregar-servicio")]
-    [Authorize(Policy = "RequireMecanicoRole")]
+    [Authorize(Roles = "Admin,Mecanico")]
     public async Task<IActionResult> AgregarServicio([FromBody] AgregarServicioOrdenDto dto)
     {
         if (!ModelState.IsValid)
@@ -67,7 +72,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("agregar-repuesto")]
-    [Authorize(Policy = "RequireMecanicoRole")]
+    [Authorize(Roles = "Admin,Mecanico")]
     public async Task<IActionResult> AgregarRepuestoAOrden([FromBody] AgregarRepuestoOrdenDto dto)
     {
         if (!ModelState.IsValid)
@@ -85,7 +90,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpGet("{id}/totales")]
-    [Authorize(Roles = "Mecanico,Recepcionista")]
+    [Authorize(Roles = "Admin,Mecanico,Recepcionista")]
     public async Task<IActionResult> GetTotalesOrden(int id)
     {
         var resumen = await _ordenServicioService.CalcularTotalesOrdenAsync(id);
@@ -97,7 +102,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("facturar")]
-    [Authorize(Policy = "RequireRecepcionistaRole")]
+    [Authorize(Roles = "Admin,Recepcionista")]
     public async Task<IActionResult> FacturarOrden([FromBody] GenerarFacturaDto dto)
     {
         var error = await _ordenServicioService.FacturarYCerrarOrdenAsync(dto);
@@ -107,5 +112,45 @@ public class OrdenesController : ControllerBase
         }
         return Ok(new { exitoso = true, mensaje = "Factura generada con éxito. La orden de servicio ha sido cerrada." });
     }
-}
 
+    [HttpGet("mis-ordenes")]
+    [Authorize(Roles = "Cliente")]
+    public async Task<IActionResult> GetMisOrdenes()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var usuarioId))
+        {
+            return Unauthorized(new { mensaje = "Usuario no autenticado." });
+        }
+
+        // 1. Obtener el usuario autenticado
+        var usuarioRepository = _unitOfWork.Repository<Usuario>();
+        var usuarios = await usuarioRepository.GetAllAsync();
+        var usuario = usuarios.FirstOrDefault(u => u.Id == usuarioId);
+        if (usuario == null)
+        {
+            return NotFound(new { mensaje = "Usuario no encontrado." });
+        }
+
+        // 2. Obtener el cliente por correo
+        var clienteRepository = _unitOfWork.Repository<Cliente>();
+        var clientes = await clienteRepository.GetAllAsync();
+        var cliente = clientes.FirstOrDefault(c => string.Equals(c.Correo, usuario.Correo, StringComparison.OrdinalIgnoreCase));
+        if (cliente == null)
+        {
+            return NotFound(new { mensaje = "No se encontró registro de cliente asociado a su cuenta de usuario." });
+        }
+
+        // 3. Obtener vehículos del cliente
+        var vehiculoRepository = _unitOfWork.Repository<Vehiculo>();
+        var vehiculos = await vehiculoRepository.GetAllAsync();
+        var vehiculosDelCliente = vehiculos.Where(v => v.IdCliente == cliente.Id).Select(v => v.Id).ToList();
+
+        // 4. Obtener las órdenes de servicio correspondientes
+        var ordenesRepository = _unitOfWork.Repository<OrdenServicio>();
+        var ordenes = await ordenesRepository.GetAllAsync();
+        var misOrdenes = ordenes.Where(o => vehiculosDelCliente.Contains(o.VehiculoId)).ToList();
+
+        return Ok(misOrdenes);
+    }
+}

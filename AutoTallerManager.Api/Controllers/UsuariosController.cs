@@ -38,6 +38,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost("registrar")]
+    [AllowAnonymous]
     public async Task<IActionResult> Registrar([FromBody] RegistroDto dto)
     {
         if (!ModelState.IsValid)

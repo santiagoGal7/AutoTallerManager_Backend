@@ -10,7 +10,7 @@ namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Admin,Recepcionista,Cliente")]
 public class ClientesController : ControllerBase
 {
     private readonly IClienteService _clienteService;
@@ -58,5 +58,30 @@ public class ClientesController : ControllerBase
         
         return Ok(respuesta);
     }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObtenerClientePorId(int id)
+    {
+        var repository = _unitOfWork.Repository<Cliente>();
+        var clientes = await repository.GetAllAsync();
+        var cliente = clientes.FirstOrDefault(c => c.Id == id);
+
+        if (cliente == null)
+        {
+            return NotFound(new { mensaje = "El cliente especificado no existe." });
+        }
+
+        // CONTROL DE IDOR (Insecure Direct Object Reference)
+        var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        var userEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+        if (userRole == "Cliente" && !string.Equals(cliente.Correo, userEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return Forbid(); // Retornar 403 Forbidden si un Cliente intenta acceder a la info de otro cliente
+        }
+
+        return Ok(cliente);
+    }
 }
+
 

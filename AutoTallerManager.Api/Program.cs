@@ -101,6 +101,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireAdminRole", policy => policy.RequireRole("Admin"));
     options.AddPolicy("RequireMecanicoRole", policy => policy.RequireRole("Mecanico"));
     options.AddPolicy("RequireRecepcionistaRole", policy => policy.RequireRole("Recepcionista"));
+    options.AddPolicy("RequireClienteRole", policy => policy.RequireRole("Cliente"));
 });
 
 var app = builder.Build();
