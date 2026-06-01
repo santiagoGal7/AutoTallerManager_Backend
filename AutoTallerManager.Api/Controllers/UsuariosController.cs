@@ -9,6 +9,7 @@ namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioService _usuarioService;
@@ -37,7 +38,6 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost("registrar")]
-    [AllowAnonymous]
     public async Task<IActionResult> Registrar([FromBody] RegistroDto dto)
     {
         if (!ModelState.IsValid)

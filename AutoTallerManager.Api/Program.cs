@@ -89,7 +89,9 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"] ?? "AutoTallerManagerApi",
         ValidAudience = jwtSettings["Audience"] ?? "AutoTallerManagerClients",
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.Zero,
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+        NameClaimType = System.Security.Claims.ClaimTypes.Name
     };
 });
 

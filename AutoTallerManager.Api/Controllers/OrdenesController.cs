@@ -10,7 +10,7 @@ namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Admin,Mecanico,Recepcionista")]
 public class OrdenesController : ControllerBase
 {
     private readonly IOrdenServicioService _ordenServicioService;
