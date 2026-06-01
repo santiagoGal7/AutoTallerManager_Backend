@@ -12,4 +12,7 @@ public class CrearOrdenServicioDto
 
     [Range(0, 99999999, ErrorMessage = "El costo estimado debe ser un valor positivo.")]
     public decimal CostoEstimado { get; set; }
+
+    public int? CantidadRepuestos { get; set; }
+    public DateTime? FechaCita { get; set; }
 }

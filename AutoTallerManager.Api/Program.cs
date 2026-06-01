@@ -15,7 +15,14 @@ using AspNetCoreRateLimit;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<AutoTallerManager.Api.Filters.ValidationFilter>();
+});
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+});
 builder.Services.AddEndpointsApiExplorer();
 
 // CONFIGURACIÓN DE SWAGGER CON SEGURIDAD JWT BEARER
@@ -66,6 +73,7 @@ builder.Services.AddScoped<IOrdenServicioService, OrdenServicioService>();
 builder.Services.AddScoped<IServicioTallerService, ServicioTallerService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddApplicationServices(); // Registrar validadores de FluentValidation
 MapsterConfig.RegisterMappings();
 
 // CONFIGURACIÓN DE AUTENTICACIÓN JWT
