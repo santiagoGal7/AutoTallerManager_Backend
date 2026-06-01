@@ -93,6 +93,40 @@ public class UsuarioService : IUsuarioService
         return usuario.Adapt<UsuarioResponseDto>();
     }
 
+    public async Task<UsuarioResponseDto> RegistrarAsync(RegistroDto dto)
+    {
+        if (dto == null)
+            throw new ArgumentNullException(nameof(dto));
+
+        var repository = _unitOfWork.Repository<Usuario>();
+        
+        // Verificar si el correo ya existe
+        var usuarios = await repository.GetAllAsync();
+        var existe = usuarios.Any(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
+        if (existe)
+        {
+            throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
+        }
+
+        // Crear la entidad
+        var usuario = new Usuario
+        {
+            Nombre = dto.Nombre,
+            Correo = dto.Correo,
+            Rol = string.IsNullOrWhiteSpace(dto.Rol) ? "Admin" : dto.Rol,
+            Activo = true
+        };
+
+        // Hashear contraseña
+        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, dto.Contrasena);
+
+        // Guardar en la base de datos
+        await repository.AddAsync(usuario);
+        await _unitOfWork.CompleteAsync();
+
+        return usuario.Adapt<UsuarioResponseDto>();
+    }
+
     public async Task<IEnumerable<UsuarioResponseDto>> ObtenerTodosAsync()
     {
         var repository = _unitOfWork.Repository<Usuario>();

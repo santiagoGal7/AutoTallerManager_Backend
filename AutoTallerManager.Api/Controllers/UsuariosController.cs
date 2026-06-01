@@ -37,8 +37,8 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost("registrar")]
-    [Authorize(Policy = "RequireAdminRole")]
-    public async Task<IActionResult> Registrar([FromBody] CrearUsuarioDto dto)
+    [AllowAnonymous]
+    public async Task<IActionResult> Registrar([FromBody] RegistroDto dto)
     {
         if (!ModelState.IsValid)
         {
@@ -47,7 +47,7 @@ public class UsuariosController : ControllerBase
 
         try
         {
-            var result = await _usuarioService.RegistrarUsuarioAsync(dto);
+            var result = await _usuarioService.RegistrarAsync(dto);
             return Created(string.Empty, result);
         }
         catch (InvalidOperationException ex)
