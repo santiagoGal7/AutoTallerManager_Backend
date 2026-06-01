@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Text.Json;
@@ -10,11 +12,13 @@ public class GlobalExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionMiddleware> _logger;
+    private readonly IWebHostEnvironment _env;
 
-    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
+    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger, IWebHostEnvironment env)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _env = env ?? throw new ArgumentNullException(nameof(env));
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -37,27 +41,58 @@ public class GlobalExceptionMiddleware
             correlationId = Guid.NewGuid().ToString();
         }
 
-        // Registrar en el log de forma estructurada: CorrelationId, mensaje completo y la excepción (que incluye StackTrace)
-        _logger.LogError(
-            exception,
-            "Error detectado en el pipeline del servidor. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}] [Message: {Message}] [StackTrace: {StackTrace}]",
-            correlationId.ToString(),
-            context.Request.Path,
-            context.Request.Method,
-            exception.Message,
-            exception.StackTrace
-        );
+        // Registrar en el log de forma estructurada e inteligente basada en el entorno
+        if (_env.IsDevelopment())
+        {
+            // En desarrollo, registramos la excepción completa para facilitar el debugging
+            _logger.LogError(
+                exception,
+                "Error detectado en el pipeline del servidor. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}] [Message: {Message}]",
+                correlationId.ToString(),
+                context.Request.Path,
+                context.Request.Method,
+                exception.Message
+            );
+        }
+        else
+        {
+            // En producción, registramos de forma sanitizada. No volcamos la pila completa ni detalles internos de la BD en texto plano
+            _logger.LogError(
+                "Error no controlado en producción. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}] [SanitizedMessage: Ocurrió una falla interna en el servidor.]",
+                correlationId.ToString(),
+                context.Request.Path,
+                context.Request.Method
+            );
+        }
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
-        // Devolver un mensaje genérico al cliente para evitar exponer vulnerabilidades
-        var responsePayload = new
+        // Construir la respuesta basada en el entorno
+        object responsePayload;
+
+        if (_env.IsDevelopment())
         {
-            status = StatusCodes.Status500InternalServerError,
-            mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud. Por favor, contacte al soporte técnico con su CorrelationId.",
-            correlationId = correlationId.ToString()
-        };
+            // En desarrollo expone detalles técnicos para agilizar la depuración
+            responsePayload = new
+            {
+                status = StatusCodes.Status500InternalServerError,
+                mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud.",
+                detalle = exception.Message,
+                stackTrace = exception.StackTrace,
+                correlationId = correlationId.ToString()
+            };
+        }
+        else
+        {
+            // En producción enmascara la excepción por seguridad y solo retorna un mensaje genérico con el CorrelationId
+            responsePayload = new
+            {
+                status = StatusCodes.Status500InternalServerError,
+                mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud. Por favor, contacte al soporte técnico con su CorrelationId.",
+                correlationId = correlationId.ToString()
+            };
+        }
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var json = JsonSerializer.Serialize(responsePayload, options);

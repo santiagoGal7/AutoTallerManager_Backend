@@ -76,9 +76,20 @@ builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddApplicationServices(); // Registrar validadores de FluentValidation
 MapsterConfig.RegisterMappings();
 
+// CONFIGURACIÓN DE HSTS (HTTP Strict Transport Security) PARA PRODUCCIÓN
+builder.Services.AddHsts(options =>
+{
+    options.Preload = true;
+    options.IncludeSubDomains = true;
+    options.MaxAge = TimeSpan.FromDays(365); // 1 año de transporte estrictamente seguro
+});
+
 // CONFIGURACIÓN DE AUTENTICACIÓN JWT
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-var secretKey = jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Secret Key is not configured.");
+// Buscar la clave en la variable de entorno JWT_SECRET_KEY, con caída opcional a appsettings.json
+var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
+                ?? jwtSettings["Key"] 
+                ?? throw new InvalidOperationException("JWT Secret Key is not configured in environment variables or appsettings.json.");
 
 builder.Services.AddAuthentication(options =>
 {
@@ -87,7 +98,8 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Habilitar en producción
+    // Requerir HTTPS metadata estrictamente si el entorno actual es de producción
+    options.RequireHttpsMetadata = builder.Environment.IsProduction();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -187,6 +199,10 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseHsts(); // Habilitar Strict Transport Security (HSTS) en entornos no locales
 }
 
 app.UseHttpsRedirection();
