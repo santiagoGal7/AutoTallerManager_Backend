@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -104,10 +105,50 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireClienteRole", policy => policy.RequireRole("Cliente"));
 });
 
+// CONFIGURACIÓN DE RATE LIMITING (LIMITACIÓN DE TASA DE PETICIONES)
+builder.Services.AddOptions();
+builder.Services.AddMemoryCache();
+
+builder.Services.Configure<IpRateLimitOptions>(options =>
+{
+    options.EnableEndpointRateLimiting = true;
+    options.StackBlockedRequests = false;
+    options.HttpStatusCode = 429;
+    options.RealIpHeader = "X-Real-IP";
+    options.ClientIdHeader = "X-ClientId";
+    options.GeneralRules = new List<RateLimitRule>
+    {
+        new RateLimitRule
+        {
+            Endpoint = "post:/api/usuarios/login",
+            Period = "1m",
+            Limit = 5
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*:/api/ordenes/*",
+            Period = "1m",
+            Limit = 60
+        }
+    };
+    options.QuotaExceededResponse = new QuotaExceededResponse
+    {
+        Content = "{\"status\": 429, \"mensaje\": \"Has superado el límite de peticiones permitido. Por favor, inténtelo de nuevo más tarde.\"}",
+        ContentType = "application/json",
+        StatusCode = 429
+    };
+});
+
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
 var app = builder.Build();
 
 // Middleware Global de Excepciones para blindar el backend
 app.UseMiddleware<AutoTallerManager.Api.Middleware.GlobalExceptionMiddleware>();
+
+// Habilitar limitación de peticiones por IP (Rate Limiting)
+app.UseIpRateLimiting();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
