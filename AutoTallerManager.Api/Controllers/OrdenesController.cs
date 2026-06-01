@@ -3,12 +3,14 @@ using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs;
 using AutoTallerManager.Application.Services;
 using AutoTallerManager.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class OrdenesController : ControllerBase
 {
     private readonly IOrdenServicioService _ordenServicioService;
@@ -19,6 +21,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("abrir")]
+    [Authorize(Policy = "RequireRecepcionistaRole")]
     public async Task<IActionResult> AbrirOrden([FromBody] CrearOrdenServicioDto dto)
     {
         if (!ModelState.IsValid)
@@ -36,6 +39,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("agregar-servicio")]
+    [Authorize(Policy = "RequireMecanicoRole")]
     public async Task<IActionResult> AgregarServicio([FromBody] AgregarServicioOrdenDto dto)
     {
         if (!ModelState.IsValid)
@@ -63,6 +67,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("agregar-repuesto")]
+    [Authorize(Policy = "RequireMecanicoRole")]
     public async Task<IActionResult> AgregarRepuestoAOrden([FromBody] AgregarRepuestoOrdenDto dto)
     {
         if (!ModelState.IsValid)
@@ -80,6 +85,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpGet("{id}/totales")]
+    [Authorize(Roles = "Mecanico,Recepcionista")]
     public async Task<IActionResult> GetTotalesOrden(int id)
     {
         var resumen = await _ordenServicioService.CalcularTotalesOrdenAsync(id);
@@ -91,6 +97,7 @@ public class OrdenesController : ControllerBase
     }
 
     [HttpPost("facturar")]
+    [Authorize(Policy = "RequireRecepcionistaRole")]
     public async Task<IActionResult> FacturarOrden([FromBody] GenerarFacturaDto dto)
     {
         var error = await _ordenServicioService.FacturarYCerrarOrdenAsync(dto);
@@ -101,3 +108,4 @@ public class OrdenesController : ControllerBase
         return Ok(new { exitoso = true, mensaje = "Factura generada con éxito. La orden de servicio ha sido cerrada." });
     }
 }
+

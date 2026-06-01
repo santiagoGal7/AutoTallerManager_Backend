@@ -2,12 +2,14 @@ using System;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs;
 using AutoTallerManager.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ServiciosTallerController : ControllerBase
 {
     private readonly IServicioTallerService _servicioTallerService;
@@ -18,6 +20,7 @@ public class ServiciosTallerController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Recepcionista")]
     public async Task<IActionResult> RegistrarServicio([FromBody] CrearServicioTallerDto dto)
     {
         if (!ModelState.IsValid)
@@ -36,3 +39,4 @@ public class ServiciosTallerController : ControllerBase
         }
     }
 }
+

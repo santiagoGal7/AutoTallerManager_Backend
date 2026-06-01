@@ -5,12 +5,14 @@ using AutoTallerManager.Application.DTOs.Clientes;
 using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Domain.Entities;
 using Mapster;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class VehiculosController : ControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -21,6 +23,7 @@ public class VehiculosController : ControllerBase
     }
 
     [HttpGet("listar-vehiculos")]
+    [Authorize(Roles = "Recepcionista,Mecanico,Admin")]
     public async Task<IActionResult> ListarVehiculos()
     {
         // Consultamos todos los vehículos de la base de datos
@@ -32,3 +35,4 @@ public class VehiculosController : ControllerBase
         return Ok(respuesta);
     }
 }
+

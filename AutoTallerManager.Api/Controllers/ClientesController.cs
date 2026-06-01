@@ -3,12 +3,14 @@ using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Application.Services;
 using AutoTallerManager.Domain.Entities;
 using Mapster;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ClientesController : ControllerBase
 {
     private readonly IClienteService _clienteService;
@@ -21,6 +23,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpPost("registrar-con-vehiculo")]
+    [Authorize(Roles = "Recepcionista,Admin")]
     public async Task<ActionResult<ClienteResponseDto>> RegistrarClienteConVehiculo([FromBody] CrearClienteDto dto)
     {
         if (!ModelState.IsValid)
@@ -44,6 +47,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("listar-vehiculos")]
+    [Authorize(Roles = "Recepcionista,Mecanico,Admin")]
     public async Task<IActionResult> ListarVehiculos()
     {
         // Usar el repositorio para traer los carros reales de Supabase
@@ -55,3 +59,4 @@ public class ClientesController : ControllerBase
         return Ok(respuesta);
     }
 }
+
