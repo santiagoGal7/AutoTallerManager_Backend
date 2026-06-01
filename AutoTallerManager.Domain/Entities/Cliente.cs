@@ -8,6 +8,10 @@ public class Cliente
     public string Correo { get; set; } = string.Empty;
     public DateTime FechaRegistro { get; set; } = DateTime.UtcNow;
 
+    // Vínculo con la tabla de Usuarios (Atomicidad de registro)
+    public int? UsuarioId { get; set; }
+    public virtual Usuario? Usuario { get; set; }
+
     // Propiedad de navegación: Un cliente puede tener muchos autos
     public virtual ICollection<Vehiculo> Vehiculos { get; set; } = new List<Vehiculo>();
 }

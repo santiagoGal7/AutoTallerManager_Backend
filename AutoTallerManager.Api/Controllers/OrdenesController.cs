@@ -113,9 +113,19 @@ public class OrdenesController : ControllerBase
         return Ok(new { exitoso = true, mensaje = "Factura generada con éxito. La orden de servicio ha sido cerrada." });
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Admin,Mecanico,Recepcionista")]
+    public async Task<IActionResult> ListarOrdenes([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+    {
+        var (items, totalCount) = await _unitOfWork.Repository<OrdenServicio>().GetAllPagedAsync(pageNumber, pageSize);
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
+        return Ok(items);
+    }
+
     [HttpGet("mis-ordenes")]
     [Authorize(Roles = "Cliente")]
-    public async Task<IActionResult> GetMisOrdenes()
+    public async Task<IActionResult> GetMisOrdenes([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var usuarioId))
@@ -151,6 +161,18 @@ public class OrdenesController : ControllerBase
         var ordenes = await ordenesRepository.GetAllAsync();
         var misOrdenes = ordenes.Where(o => vehiculosDelCliente.Contains(o.VehiculoId)).ToList();
 
-        return Ok(misOrdenes);
+        var totalCount = misOrdenes.Count;
+        var actualPage = pageNumber < 1 ? 1 : pageNumber;
+        var actualSize = pageSize < 1 ? 10 : pageSize;
+
+        var items = misOrdenes
+            .Skip((actualPage - 1) * actualSize)
+            .Take(actualSize)
+            .ToList();
+
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
+
+        return Ok(items);
     }
 }

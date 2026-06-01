@@ -32,5 +32,14 @@ public class ClienteConfiguration : IEntityTypeConfiguration<Cliente>
             .WithOne(v => v.Cliente)
             .HasForeignKey(v => v.IdCliente)
             .OnDelete(DeleteBehavior.Restrict); // Impide borrar físicamente un cliente si tiene autos registrados
+
+        // Vínculo con la tabla de Usuarios (Atomicidad de registro)
+        builder.Property(c => c.UsuarioId)
+            .IsRequired(false);
+
+        builder.HasOne(c => c.Usuario)
+            .WithMany()
+            .HasForeignKey(c => c.UsuarioId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

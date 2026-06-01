@@ -22,9 +22,64 @@ public class UnitOfWork : IUnitOfWork
         return (IRepository<T>)_repositories.GetOrAdd(typeName, _ => new Repository<T>(_context));
     }
 
+    private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _currentTransaction;
+
     public async Task<int> CompleteAsync()
     {
         return await _context.SaveChangesAsync();
+    }
+
+    public async Task BeginTransactionAsync()
+    {
+        if (_currentTransaction != null)
+        {
+            return;
+        }
+        _currentTransaction = await _context.Database.BeginTransactionAsync();
+    }
+
+    public async Task CommitTransactionAsync()
+    {
+        try
+        {
+            await _context.SaveChangesAsync();
+            if (_currentTransaction != null)
+            {
+                await _currentTransaction.CommitAsync();
+            }
+        }
+        catch
+        {
+            await RollbackTransactionAsync();
+            throw;
+        }
+        finally
+        {
+            if (_currentTransaction != null)
+            {
+                await _currentTransaction.DisposeAsync();
+                _currentTransaction = null;
+            }
+        }
+    }
+
+    public async Task RollbackTransactionAsync()
+    {
+        try
+        {
+            if (_currentTransaction != null)
+            {
+                await _currentTransaction.RollbackAsync();
+            }
+        }
+        finally
+        {
+            if (_currentTransaction != null)
+            {
+                await _currentTransaction.DisposeAsync();
+                _currentTransaction = null;
+            }
+        }
     }
 
     public void Dispose()
@@ -39,6 +94,7 @@ public class UnitOfWork : IUnitOfWork
         {
             if (disposing)
             {
+                _currentTransaction?.Dispose();
                 _context.Dispose();
             }
             _disposed = true;

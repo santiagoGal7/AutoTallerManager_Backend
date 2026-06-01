@@ -24,13 +24,15 @@ public class VehiculosController : ControllerBase
 
     [HttpGet("listar-vehiculos")]
     [Authorize(Roles = "Recepcionista,Mecanico,Admin")]
-    public async Task<IActionResult> ListarVehiculos()
+    public async Task<IActionResult> ListarVehiculos([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        // Consultamos todos los vehículos de la base de datos
-        var vehiculos = await _unitOfWork.Repository<Vehiculo>().GetAllAsync();
+        // Consultamos todos los vehículos de la base de datos de forma paginada
+        var (items, totalCount) = await _unitOfWork.Repository<Vehiculo>().GetAllPagedAsync(pageNumber, pageSize);
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
 
         // Mapeamos a DTOs para evitar referencias circulares durante la serialización JSON
-        var respuesta = vehiculos.Adapt<List<VehiculoResponseDto>>();
+        var respuesta = items.Adapt<List<VehiculoResponseDto>>();
 
         return Ok(respuesta);
     }

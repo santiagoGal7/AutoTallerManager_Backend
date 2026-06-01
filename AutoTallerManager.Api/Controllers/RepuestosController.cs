@@ -62,11 +62,12 @@ public class RepuestosController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "Admin,Mecanico,Recepcionista")]
-    public async Task<IActionResult> ListarRepuestos()
+    public async Task<IActionResult> ListarRepuestos([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        var repository = _unitOfWork.Repository<Repuesto>();
-        var repuestos = await repository.GetAllAsync();
-        return Ok(repuestos);
+        var (items, totalCount) = await _unitOfWork.Repository<Repuesto>().GetAllPagedAsync(pageNumber, pageSize);
+        Response.Headers["X-Total-Count"] = totalCount.ToString();
+        Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
+        return Ok(items);
     }
 
     [HttpGet("{id}")]

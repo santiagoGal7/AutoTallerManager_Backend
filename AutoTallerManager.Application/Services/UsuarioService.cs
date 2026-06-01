@@ -98,33 +98,59 @@ public class UsuarioService : IUsuarioService
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
 
-        var repository = _unitOfWork.Repository<Usuario>();
-        
-        // Verificar si el correo ya existe
-        var usuarios = await repository.GetAllAsync();
-        var existe = usuarios.Any(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
-        if (existe)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
+            var repository = _unitOfWork.Repository<Usuario>();
+            
+            // Verificar si el correo ya existe
+            var usuarios = await repository.GetAllAsync();
+            var existe = usuarios.Any(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
+            if (existe)
+            {
+                throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
+            }
+
+            // Crear la entidad
+            var usuario = new Usuario
+            {
+                Nombre = dto.Nombre,
+                Correo = dto.Correo,
+                Rol = string.IsNullOrWhiteSpace(dto.Rol) ? "Admin" : dto.Rol,
+                Activo = true
+            };
+
+            // Hashear contraseña
+            usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, dto.Contrasena);
+
+            // Guardar en la base de datos
+            await repository.AddAsync(usuario);
+            await _unitOfWork.CompleteAsync();
+
+            // Si el rol es "Cliente", crear la entidad Cliente vinculando el Usuario.Id como UsuarioId
+            if (string.Equals(usuario.Rol, "Cliente", StringComparison.OrdinalIgnoreCase))
+            {
+                var clienteRepository = _unitOfWork.Repository<Cliente>();
+                var cliente = new Cliente
+                {
+                    Nombre = usuario.Nombre,
+                    Correo = usuario.Correo,
+                    Telefono = dto.Telefono ?? string.Empty,
+                    UsuarioId = usuario.Id
+                };
+                await clienteRepository.AddAsync(cliente);
+                await _unitOfWork.CompleteAsync();
+            }
+
+            await _unitOfWork.CommitTransactionAsync();
+
+            return usuario.Adapt<UsuarioResponseDto>();
         }
-
-        // Crear la entidad
-        var usuario = new Usuario
+        catch
         {
-            Nombre = dto.Nombre,
-            Correo = dto.Correo,
-            Rol = string.IsNullOrWhiteSpace(dto.Rol) ? "Admin" : dto.Rol,
-            Activo = true
-        };
-
-        // Hashear contraseña
-        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, dto.Contrasena);
-
-        // Guardar en la base de datos
-        await repository.AddAsync(usuario);
-        await _unitOfWork.CompleteAsync();
-
-        return usuario.Adapt<UsuarioResponseDto>();
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 
     public async Task<IEnumerable<UsuarioResponseDto>> ObtenerTodosAsync()

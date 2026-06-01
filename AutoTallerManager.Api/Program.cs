@@ -106,6 +106,9 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// Middleware Global de Excepciones para blindar el backend
+app.UseMiddleware<AutoTallerManager.Api.Middleware.GlobalExceptionMiddleware>();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

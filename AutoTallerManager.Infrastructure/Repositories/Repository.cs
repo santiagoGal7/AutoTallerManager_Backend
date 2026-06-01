@@ -58,4 +58,20 @@ public class Repository<T> : IRepository<T> where T : class
     {
         Context.Set<T>().Remove(entity);
     }
+
+    public async Task<(IEnumerable<T> Items, int TotalCount)> GetAllPagedAsync(int pageNumber, int pageSize)
+    {
+        var query = Context.Set<T>().AsNoTracking();
+        var totalCount = await query.CountAsync();
+
+        var actualPage = pageNumber < 1 ? 1 : pageNumber;
+        var actualSize = pageSize < 1 ? 10 : pageSize;
+
+        var items = await query
+            .Skip((actualPage - 1) * actualSize)
+            .Take(actualSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
 }
