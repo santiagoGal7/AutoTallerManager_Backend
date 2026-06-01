@@ -12,7 +12,7 @@ namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Mecanico,Recepcionista")]
 public class RepuestosController : ControllerBase
 {
     private readonly IUnitOfWork _unitOfWork;
@@ -23,6 +23,7 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AltaRepuesto([FromBody] CrearRepuestoDto dto)
     {
         if (!ModelState.IsValid)
@@ -41,11 +42,11 @@ public class RepuestosController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> BajaRepuesto(int id)
     {
         var repository = _unitOfWork.Repository<Repuesto>();
-        var repuestos = await repository.GetAllAsync();
-        var repuesto = repuestos.FirstOrDefault(r => r.Id == id);
+        var repuesto = await repository.GetByIntIdAsync(id);
 
         if (repuesto == null)
         {
@@ -75,8 +76,7 @@ public class RepuestosController : ControllerBase
     public async Task<IActionResult> ObtenerPorId(int id)
     {
         var repository = _unitOfWork.Repository<Repuesto>();
-        var repuestos = await repository.GetAllAsync();
-        var repuesto = repuestos.FirstOrDefault(r => r.Id == id);
+        var repuesto = await repository.GetByIntIdAsync(id);
 
         if (repuesto == null)
         {

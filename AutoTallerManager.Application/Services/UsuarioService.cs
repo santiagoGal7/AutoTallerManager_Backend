@@ -30,9 +30,8 @@ public class UsuarioService : IUsuarioService
 
         var repository = _unitOfWork.Repository<Usuario>();
         
-        // Buscar el usuario por correo
-        var usuarios = await repository.GetAllAsync();
-        var usuario = usuarios.FirstOrDefault(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
+        // Buscar el usuario por correo de forma directa en la base de datos
+        var usuario = repository.Find(u => u.Correo.ToLower() == dto.Correo.ToLower()).FirstOrDefault();
 
         if (usuario == null || !usuario.Activo)
         {
@@ -66,9 +65,8 @@ public class UsuarioService : IUsuarioService
 
         var repository = _unitOfWork.Repository<Usuario>();
         
-        // Verificar si el correo ya existe
-        var usuarios = await repository.GetAllAsync();
-        var existe = usuarios.Any(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
+        // Verificar si el correo ya existe de forma directa en la base de datos
+        var existe = await repository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
         if (existe)
         {
             throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
@@ -103,9 +101,8 @@ public class UsuarioService : IUsuarioService
         {
             var repository = _unitOfWork.Repository<Usuario>();
             
-            // Verificar si el correo ya existe
-            var usuarios = await repository.GetAllAsync();
-            var existe = usuarios.Any(u => u.Correo.Equals(dto.Correo, StringComparison.OrdinalIgnoreCase));
+            // Verificar si el correo ya existe de forma directa en la base de datos
+            var existe = await repository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
             if (existe)
             {
                 throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");

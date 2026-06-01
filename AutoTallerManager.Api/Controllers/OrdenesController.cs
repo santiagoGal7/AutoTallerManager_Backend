@@ -80,13 +80,20 @@ public class OrdenesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var error = await _ordenServicioService.AgregarRepuestoAOrdenAsync(dto);
-        if (error != null)
+        try
         {
-            return BadRequest(new { mensaje = error });
-        }
+            var error = await _ordenServicioService.AgregarRepuestoAOrdenAsync(dto);
+            if (error != null)
+            {
+                return BadRequest(new { mensaje = error });
+            }
 
-        return Ok(new { exitoso = true, mensaje = "Repuesto asociado a la orden con éxito." });
+            return Ok(new { exitoso = true, mensaje = "Repuesto asociado a la orden con éxito." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message });
+        }
     }
 
     [HttpGet("{id}/totales")]
@@ -133,39 +140,35 @@ public class OrdenesController : ControllerBase
             return Unauthorized(new { mensaje = "Usuario no autenticado." });
         }
 
-        // 1. Obtener el usuario autenticado
+        // 1. Obtener el usuario autenticado (búsqueda directa)
         var usuarioRepository = _unitOfWork.Repository<Usuario>();
-        var usuarios = await usuarioRepository.GetAllAsync();
-        var usuario = usuarios.FirstOrDefault(u => u.Id == usuarioId);
+        var usuario = await usuarioRepository.GetByIntIdAsync(usuarioId);
         if (usuario == null)
         {
             return NotFound(new { mensaje = "Usuario no encontrado." });
         }
 
-        // 2. Obtener el cliente por correo
+        // 2. Obtener el cliente por correo (directo en BD)
         var clienteRepository = _unitOfWork.Repository<Cliente>();
-        var clientes = await clienteRepository.GetAllAsync();
-        var cliente = clientes.FirstOrDefault(c => string.Equals(c.Correo, usuario.Correo, StringComparison.OrdinalIgnoreCase));
+        var cliente = clienteRepository.Find(c => c.Correo.ToLower() == usuario.Correo.ToLower()).FirstOrDefault();
         if (cliente == null)
         {
             return NotFound(new { mensaje = "No se encontró registro de cliente asociado a su cuenta de usuario." });
         }
 
-        // 3. Obtener vehículos del cliente
+        // 3. Obtener vehículos del cliente (directo en BD)
         var vehiculoRepository = _unitOfWork.Repository<Vehiculo>();
-        var vehiculos = await vehiculoRepository.GetAllAsync();
-        var vehiculosDelCliente = vehiculos.Where(v => v.IdCliente == cliente.Id).Select(v => v.Id).ToList();
+        var vehiculosDelCliente = vehiculoRepository.Find(v => v.IdCliente == cliente.Id).Select(v => v.Id).ToList();
 
-        // 4. Obtener las órdenes de servicio correspondientes
+        // 4. Obtener las órdenes de servicio correspondientes y paginar de forma transparente en BD
         var ordenesRepository = _unitOfWork.Repository<OrdenServicio>();
-        var ordenes = await ordenesRepository.GetAllAsync();
-        var misOrdenes = ordenes.Where(o => vehiculosDelCliente.Contains(o.VehiculoId)).ToList();
+        var misOrdenesQuery = ordenesRepository.Find(o => vehiculosDelCliente.Contains(o.VehiculoId)).AsQueryable();
 
-        var totalCount = misOrdenes.Count;
+        var totalCount = misOrdenesQuery.Count();
         var actualPage = pageNumber < 1 ? 1 : pageNumber;
         var actualSize = pageSize < 1 ? 10 : pageSize;
 
-        var items = misOrdenes
+        var items = misOrdenesQuery
             .Skip((actualPage - 1) * actualSize)
             .Take(actualSize)
             .ToList();

@@ -17,9 +17,8 @@ public class ClienteService : IClienteService
     public async Task<ClienteResponseDto> RegistrarClienteConVehiculoAsync(CrearClienteDto dto)
     {
         // a) Usar el repositorio de Cliente para verificar mediante una expresión si el correo electrónico ya está registrado.
-        var existeCorreo = _unitOfWork.Repository<Cliente>()
-            .Find(c => c.Correo.ToLower() == dto.Correo.ToLower())
-            .Any();
+        var existeCorreo = await _unitOfWork.Repository<Cliente>()
+            .AnyAsync(c => c.Correo.ToLower() == dto.Correo.ToLower());
 
         if (existeCorreo)
         {
@@ -93,8 +92,7 @@ public class ClienteService : IClienteService
         
         // AUTOMÁTICAMENTE CREAR VÍNCULO CON LA TABLA DE USUARIOS PARA ROL "Cliente"
         var usuarioRepository = _unitOfWork.Repository<Usuario>();
-        var todosUsuarios = await usuarioRepository.GetAllAsync();
-        var existeUsuario = todosUsuarios.Any(u => u.Correo.ToLower() == dto.Correo.ToLower());
+        var existeUsuario = await usuarioRepository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
         if (!existeUsuario)
         {
             var nuevoUsuario = new Usuario

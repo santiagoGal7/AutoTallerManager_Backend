@@ -90,38 +90,72 @@ public class OrdenServicioService : IOrdenServicioService
 
     public async Task<string?> AgregarRepuestoAOrdenAsync(AgregarRepuestoOrdenDto dto)
     {
-        // 1. Valida si la OrdenServicioId existe en el repositorio de OrdenServicio. Si no existe, retorna error
-        var existeOrden = await _unitOfWork.Repository<OrdenServicio>()
-            .AnyAsync(o => o.Id == dto.OrdenServicioId);
+        if (dto == null)
+            throw new ArgumentNullException(nameof(dto));
 
-        if (!existeOrden)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            return "La orden de servicio especificada no existe.";
+            // 1. Valida si la Orden de Servicio existe
+            var orden = await _unitOfWork.Repository<OrdenServicio>().GetByIntIdAsync(dto.OrdenServicioId);
+            if (orden == null)
+            {
+                throw new InvalidOperationException("La orden de servicio especificada no existe.");
+            }
+
+            if (orden.Estado == "Finalizada")
+            {
+                throw new InvalidOperationException("No se pueden añadir repuestos a una orden de servicio finalizada y cerrada.");
+            }
+
+            // 2. Valida si el Repuesto existe en la tabla de inventario
+            var repuestoRepository = _unitOfWork.Repository<Repuesto>();
+            var repuesto = await repuestoRepository.GetByIntIdAsync(dto.RepuestoId);
+            if (repuesto == null)
+            {
+                throw new InvalidOperationException("El repuesto seleccionado no existe en el inventario.");
+            }
+
+            if (!repuesto.Activo)
+            {
+                throw new InvalidOperationException("El repuesto seleccionado no está activo en el catálogo del taller.");
+            }
+
+            // 3. Validación estricta de stock
+            if (repuesto.Stock < dto.Cantidad)
+            {
+                throw new InvalidOperationException($"Stock insuficiente. Cantidad disponible en inventario: {repuesto.Stock}. Cantidad solicitada: {dto.Cantidad}.");
+            }
+
+            // 4. Decremento de stock
+            repuesto.Stock -= dto.Cantidad;
+            repuestoRepository.Update(repuesto);
+
+            // 5. Instanciar y agregar detalle a la orden
+            var detalleRepuesto = new DetalleOrdenRepuesto
+            {
+                OrdenServicioId = dto.OrdenServicioId,
+                RepuestoId = dto.RepuestoId,
+                Cantidad = dto.Cantidad,
+                PrecioVentaHistorico = dto.PrecioVentaHistorico
+            };
+
+            await _unitOfWork.Repository<DetalleOrdenRepuesto>().AddAsync(detalleRepuesto);
+            
+            // Guardar cambios dentro de la transacción
+            await _unitOfWork.CompleteAsync();
+            
+            // Confirmar transacción
+            await _unitOfWork.CommitTransactionAsync();
+
+            return null; // Operación exitosa sin errores heredados
         }
-
-        // 2. Valida si el RepuestoId existe en la tabla Repuestos. Si no existe, retorna error
-        var existeRepuesto = await _unitOfWork.Repository<Repuesto>()
-            .AnyAsync(r => r.Id == dto.RepuestoId);
-
-        if (!existeRepuesto)
+        catch
         {
-            return "El repuesto seleccionado no existe en el inventario.";
+            // Desencadenar el rollback automático de la transacción
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
         }
-
-        // 3. Si las validaciones pasan, instancia la entidad de dominio intermedia DetalleOrdenRepuesto
-        var detalleRepuesto = new DetalleOrdenRepuesto
-        {
-            OrdenServicioId = dto.OrdenServicioId,
-            RepuestoId = dto.RepuestoId,
-            Cantidad = dto.Cantidad,
-            PrecioVentaHistorico = dto.PrecioVentaHistorico
-        };
-
-        // 4. Añádela a su repositorio correspondiente y confirma la transacción de forma atómica
-        await _unitOfWork.Repository<DetalleOrdenRepuesto>().AddAsync(detalleRepuesto);
-        await _unitOfWork.CompleteAsync();
-
-        return null; // Indica que no hubo errores
     }
 
     public async Task<ResumenTotalesOrdenDto?> CalcularTotalesOrdenAsync(int ordenId)

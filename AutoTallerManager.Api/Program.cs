@@ -126,7 +126,31 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
         },
         new RateLimitRule
         {
+            Endpoint = "post:/api/Usuarios/login",
+            Period = "1m",
+            Limit = 5
+        },
+        new RateLimitRule
+        {
+            Endpoint = "post:/api/usuarios/registrar",
+            Period = "1m",
+            Limit = 5
+        },
+        new RateLimitRule
+        {
+            Endpoint = "post:/api/Usuarios/registrar",
+            Period = "1m",
+            Limit = 5
+        },
+        new RateLimitRule
+        {
             Endpoint = "*:/api/ordenes/*",
+            Period = "1m",
+            Limit = 60
+        },
+        new RateLimitRule
+        {
+            Endpoint = "*:/api/Ordenes/*",
             Period = "1m",
             Limit = 60
         }

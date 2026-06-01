@@ -76,8 +76,7 @@ public class ClientesController : ControllerBase
     public async Task<IActionResult> ObtenerClientePorId(int id)
     {
         var repository = _unitOfWork.Repository<Cliente>();
-        var clientes = await repository.GetAllAsync();
-        var cliente = clientes.FirstOrDefault(c => c.Id == id);
+        var cliente = await repository.GetByIntIdAsync(id);
 
         if (cliente == null)
         {
