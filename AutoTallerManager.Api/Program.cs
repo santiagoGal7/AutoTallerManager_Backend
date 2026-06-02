@@ -5,12 +5,20 @@ using AutoTallerManager.Application.Configuration;
 using AutoTallerManager.Domain.Entities;
 using AutoTallerManager.Infrastructure.Persistence;
 using AutoTallerManager.Infrastructure.Repositories;
+using AutoTallerManager.Infrastructure.Configuration;
+using AutoTallerManager.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using AspNetCoreRateLimit;
+
+// Cargar variables de entorno del archivo .env antes de inicializar la configuración de la app
+EnvironmentConstants.LoadEnvFile();
+
+// Desactivar el mapeo de claims heredado por compatibilidad estandarizada de nombres de claims JWT
+System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,7 +66,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // CONFIGURACIÓN DEL CONTENEDOR DE DEPENDENCIAS PARA POSTGRESQL (EF CORE)
-var connectionString = builder.Configuration.GetConnectionString("PostgresConnection");
+var connectionString = EnvironmentConstants.ConnectionString;
 builder.Services.AddDbContext<AutoTallerDbContext>(options =>
     options.UseNpgsql(connectionString, b => 
         b.MigrationsAssembly("AutoTallerManager.Infrastructure"))); // Define dónde se guardarán físicamente las migraciones
@@ -73,6 +81,7 @@ builder.Services.AddScoped<IOrdenServicioService, OrdenServicioService>();
 builder.Services.AddScoped<IServicioTallerService, ServicioTallerService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddSingleton<ITokenBlocklistService, TokenBlocklistService>(); // Registro del servicio de bloqueo de tokens
 builder.Services.AddApplicationServices(); // Registrar validadores de FluentValidation
 MapsterConfig.RegisterMappings();
 
@@ -84,12 +93,18 @@ builder.Services.AddHsts(options =>
     options.MaxAge = TimeSpan.FromDays(365); // 1 año de transporte estrictamente seguro
 });
 
+// CONFIGURACIÓN TIPADA DE JWT SETTINGS PARA LA CAPA DE APLICACIÓN
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+
+// Post-configuración de seguridad: inyectar el secreto simétrico desde variables de entorno
+builder.Services.PostConfigure<JwtSettings>(options =>
+{
+    options.Secret = EnvironmentConstants.JwtSecretKey;
+});
+
 // CONFIGURACIÓN DE AUTENTICACIÓN JWT
 var jwtSettings = builder.Configuration.GetSection("Jwt");
-// Buscar la clave en la variable de entorno JWT_SECRET_KEY, con caída opcional a appsettings.json
-var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
-                ?? jwtSettings["Key"] 
-                ?? throw new InvalidOperationException("JWT Secret Key is not configured in environment variables or appsettings.json.");
+var secretKey = EnvironmentConstants.JwtSecretKey;
 
 builder.Services.AddAuthentication(options =>
 {
@@ -209,6 +224,7 @@ app.UseHttpsRedirection();
 
 // EL ORDEN ES CRUCIAL: UseAuthentication() DEBE IR ANTES DE UseAuthorization()
 app.UseAuthentication();
+app.UseMiddleware<AutoTallerManager.Api.Middleware.JwtBlocklistMiddleware>(); // Validar revocación de tokens
 app.UseAuthorization();
 
 app.MapControllers();

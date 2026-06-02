@@ -4,19 +4,20 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using AutoTallerManager.Application.Interfaces;
+using AutoTallerManager.Application.Configuration;
 using AutoTallerManager.Domain.Entities;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 namespace AutoTallerManager.Application.Services;
 
 public class TokenService : ITokenService
 {
-    private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
 
-    public TokenService(IConfiguration configuration)
+    public TokenService(IOptions<JwtSettings> jwtSettings)
     {
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _jwtSettings = jwtSettings?.Value ?? throw new ArgumentNullException(nameof(jwtSettings));
     }
 
     public string GenerateToken(Usuario usuario)
@@ -24,11 +25,15 @@ public class TokenService : ITokenService
         if (usuario == null)
             throw new ArgumentNullException(nameof(usuario));
 
-        var jwtSettings = _configuration.GetSection("Jwt");
-        var secretKey = jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Secret Key is not configured.");
-        var issuer = jwtSettings["Issuer"] ?? "AutoTallerManagerApi";
-        var audience = jwtSettings["Audience"] ?? "AutoTallerManagerClients";
-        var expiryMinutes = double.Parse(jwtSettings["ExpiryInMinutes"] ?? "180");
+        var secretKey = _jwtSettings.Secret;
+        if (string.IsNullOrEmpty(secretKey))
+        {
+            throw new InvalidOperationException("JWT Secret Key is not configured.");
+        }
+        var issuer = _jwtSettings.Issuer;
+        var audience = _jwtSettings.Audience;
+        var expiryMinutes = _jwtSettings.ExpiryInMinutes;
+
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -39,7 +44,8 @@ public class TokenService : ITokenService
             new Claim(ClaimTypes.Email, usuario.Correo),
             new Claim(ClaimTypes.Role, usuario.Rol),
             new Claim(ClaimTypes.Name, usuario.Nombre),
-            new Claim("activo", usuario.Activo.ToString().ToLower())
+            new Claim("activo", usuario.Activo.ToString().ToLower()),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
         var tokenDescriptor = new SecurityTokenDescriptor

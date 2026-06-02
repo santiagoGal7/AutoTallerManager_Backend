@@ -1,6 +1,6 @@
 using AutoTallerManager.Application.DTOs.Clientes;
 
-namespace AutoTallerManager.Application.Services;
+namespace AutoTallerManager.Application.Interfaces;
 
 public interface IClienteService
 {

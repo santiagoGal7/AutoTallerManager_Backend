@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
+using AutoTallerManager.Application.Exceptions;
 
 namespace AutoTallerManager.Api.Middleware;
 
@@ -66,32 +67,45 @@ public class GlobalExceptionMiddleware
         }
 
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
-        // Construir la respuesta basada en el entorno
         object responsePayload;
 
-        if (_env.IsDevelopment())
+        if (exception is BusinessException businessException)
         {
-            // En desarrollo expone detalles técnicos para agilizar la depuración
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
             responsePayload = new
             {
-                status = StatusCodes.Status500InternalServerError,
-                mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud.",
-                detalle = exception.Message,
-                stackTrace = exception.StackTrace,
+                status = StatusCodes.Status400BadRequest,
+                mensaje = businessException.Message,
                 correlationId = correlationId.ToString()
             };
         }
         else
         {
-            // En producción enmascara la excepción por seguridad y solo retorna un mensaje genérico con el CorrelationId
-            responsePayload = new
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+            if (_env.IsDevelopment())
             {
-                status = StatusCodes.Status500InternalServerError,
-                mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud. Por favor, contacte al soporte técnico con su CorrelationId.",
-                correlationId = correlationId.ToString()
-            };
+                // En desarrollo expone detalles técnicos para agilizar la depuración
+                responsePayload = new
+                {
+                    status = StatusCodes.Status500InternalServerError,
+                    mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud.",
+                    detalle = exception.Message,
+                    stackTrace = exception.StackTrace,
+                    correlationId = correlationId.ToString()
+                };
+            }
+            else
+            {
+                // En producción enmascara la excepción por seguridad y solo retorna un mensaje genérico con el CorrelationId
+                responsePayload = new
+                {
+                    status = StatusCodes.Status500InternalServerError,
+                    mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud. Por favor, contacte al soporte técnico con su CorrelationId.",
+                    correlationId = correlationId.ToString()
+                };
+            }
         }
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

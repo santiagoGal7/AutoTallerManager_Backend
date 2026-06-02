@@ -7,7 +7,4 @@ public class ServicioTaller
     public string Descripcion { get; set; } = string.Empty;
     public decimal TarifaBaseManoObra { get; set; }
     public bool Activo { get; set; } = true;
-
-    // Propiedad de navegación hacia las órdenes
-    public virtual ICollection<OrdenServicio> OrdenesServicios { get; set; } = new List<OrdenServicio>();
 }

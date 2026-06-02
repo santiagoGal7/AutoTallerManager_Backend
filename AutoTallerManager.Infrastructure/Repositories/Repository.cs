@@ -29,7 +29,7 @@ public class Repository<T> : IRepository<T> where T : class
         return await Context.Set<T>().ToListAsync();
     }
 
-    public IEnumerable<T> Find(Expression<Func<T, bool>> predicate)
+    public IQueryable<T> Find(Expression<Func<T, bool>> predicate)
     {
         return Context.Set<T>().Where(predicate);
     }

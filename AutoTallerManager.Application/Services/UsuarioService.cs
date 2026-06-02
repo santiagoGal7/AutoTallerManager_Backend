@@ -15,6 +15,7 @@ public class UsuarioService : IUsuarioService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
     private readonly PasswordHasher<Usuario> _passwordHasher;
+    private static readonly IReadOnlyCollection<string> AllowedRoles = new[] { "Admin", "Mecanico", "Recepcionista", "Cliente" };
 
     public UsuarioService(IUnitOfWork unitOfWork, ITokenService tokenService)
     {
@@ -96,6 +97,16 @@ public class UsuarioService : IUsuarioService
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
 
+        // Determinar rol asignado con fallback de menor privilegio "Cliente"
+        var rolAsignado = string.IsNullOrWhiteSpace(dto.Rol) ? "Cliente" : dto.Rol.Trim();
+
+        // Control proactivo: Validación contra lista blanca antes de acceder a la base de datos
+        var normalizedRol = AllowedRoles.FirstOrDefault(r => string.Equals(r, rolAsignado, StringComparison.OrdinalIgnoreCase));
+        if (normalizedRol == null)
+        {
+            throw new AutoTallerManager.Application.Exceptions.BusinessException($"El rol '{rolAsignado}' no está permitido en el sistema de negocio.");
+        }
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {
@@ -113,7 +124,7 @@ public class UsuarioService : IUsuarioService
             {
                 Nombre = dto.Nombre,
                 Correo = dto.Correo,
-                Rol = string.IsNullOrWhiteSpace(dto.Rol) ? "Admin" : dto.Rol,
+                Rol = normalizedRol,
                 Activo = true
             };
 
@@ -122,9 +133,8 @@ public class UsuarioService : IUsuarioService
 
             // Guardar en la base de datos
             await repository.AddAsync(usuario);
-            await _unitOfWork.CompleteAsync();
 
-            // Si el rol es "Cliente", crear la entidad Cliente vinculando el Usuario.Id como UsuarioId
+            // Si el rol es "Cliente", crear la entidad Cliente vinculando el Usuario
             if (string.Equals(usuario.Rol, "Cliente", StringComparison.OrdinalIgnoreCase))
             {
                 var clienteRepository = _unitOfWork.Repository<Cliente>();
@@ -133,12 +143,12 @@ public class UsuarioService : IUsuarioService
                     Nombre = usuario.Nombre,
                     Correo = usuario.Correo,
                     Telefono = dto.Telefono ?? string.Empty,
-                    UsuarioId = usuario.Id
+                    Usuario = usuario
                 };
                 await clienteRepository.AddAsync(cliente);
-                await _unitOfWork.CompleteAsync();
             }
 
+            await _unitOfWork.CompleteAsync();
             await _unitOfWork.CommitTransactionAsync();
 
             return usuario.Adapt<UsuarioResponseDto>();

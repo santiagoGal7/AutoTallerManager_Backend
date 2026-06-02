@@ -8,7 +8,7 @@ public interface IRepository<T> where T : class
     Task<T?> GetByIntIdAsync(int id);
     Task<IEnumerable<T>> GetAllAsync();
     Task<(IEnumerable<T> Items, int TotalCount)> GetAllPagedAsync(int pageNumber, int pageSize);
-    IEnumerable<T> Find(Expression<Func<T, bool>> predicate);
+    IQueryable<T> Find(Expression<Func<T, bool>> predicate);
     Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
     Task<decimal> SumAsync(Expression<Func<T, bool>> predicate, Expression<Func<T, decimal>> selector);
     Task AddAsync(T entity);

@@ -31,15 +31,8 @@ public class OrdenServicioService : IOrdenServicioService
             };
         }
 
-        // 2. Si existe, instanciar la entidad OrdenServicio y asignar los valores
-        var orden = new OrdenServicio
-        {
-            VehiculoId = dto.VehiculoId,
-            DescripcionProblema = dto.DescripcionProblema,
-            CostoEstimado = dto.CostoEstimado,
-            Estado = "Iniciada",
-            FechaIngreso = DateTime.UtcNow
-        };
+        // 2. Si existe, instanciar la entidad OrdenServicio usando el constructor de negocio
+        var orden = new OrdenServicio(dto.VehiculoId, dto.DescripcionProblema, dto.CostoEstimado);
 
         // 3. Guardar la entidad a través del repositorio y confirmar la transacción
         await _unitOfWork.Repository<OrdenServicio>().AddAsync(orden);
@@ -142,7 +135,7 @@ public class OrdenServicioService : IOrdenServicioService
 
             await _unitOfWork.Repository<DetalleOrdenRepuesto>().AddAsync(detalleRepuesto);
             
-            // Guardar cambios dentro de la transacción
+            // Guardar cambios dentro de la transacción activa
             await _unitOfWork.CompleteAsync();
             
             // Confirmar transacción
@@ -190,45 +183,67 @@ public class OrdenServicioService : IOrdenServicioService
 
     public async Task<string?> FacturarYCerrarOrdenAsync(GenerarFacturaDto dto)
     {
-        var orden = await _unitOfWork.Repository<OrdenServicio>().GetByIntIdAsync(dto.OrdenServicioId);
+        if (dto == null)
+            throw new ArgumentNullException(nameof(dto));
 
-        if (orden == null || orden.Estado == "Finalizada")
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            return "La orden no existe o ya ha sido facturada y cerrada.";
+            // 1. Obtener la orden usando la potencia de IQueryable
+            var orden = _unitOfWork.Repository<OrdenServicio>()
+                .Find(o => o.Id == dto.OrdenServicioId)
+                .FirstOrDefault();
+
+            if (orden == null || orden.Estado == "Finalizada")
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return "La orden no existe o ya ha sido facturada y cerrada.";
+            }
+
+            // 2. Ejecutar las reglas de negocio usando los métodos encapsulados del dominio
+            var subtotalManoObra = await _unitOfWork.Repository<DetalleOrdenServicio>()
+                .SumAsync(d => d.IdOrdenServicio == dto.OrdenServicioId, d => d.PrecioManoObraHistorico * d.HorasEstimadas);
+
+            var subtotalRepuestos = await _unitOfWork.Repository<DetalleOrdenRepuesto>()
+                .SumAsync(r => r.OrdenServicioId == dto.OrdenServicioId, r => r.PrecioVentaHistorico * r.Cantidad);
+
+            subtotalManoObra = subtotalManoObra < 0 ? 0.0m : subtotalManoObra;
+            subtotalRepuestos = subtotalRepuestos < 0 ? 0.0m : subtotalRepuestos;
+
+            orden.CalcularTotal(subtotalManoObra, subtotalRepuestos);
+            orden.FinalizarOrden();
+
+            // 3. Crear y guardar la factura en el contexto
+            var subtotalGeneral = subtotalManoObra + subtotalRepuestos;
+            var impuestos = subtotalGeneral * 0.19m;
+            var totalNeto = subtotalGeneral + impuestos;
+
+            var factura = new Factura
+            {
+                OrdenServicioId = dto.OrdenServicioId,
+                NumeroFactura = "FAC-" + Guid.NewGuid().ToString()[..8].ToUpper(),
+                SubtotalManoObra = subtotalManoObra,
+                SubtotalRepuestos = subtotalRepuestos,
+                TotalImpuestos = impuestos,
+                TotalNeto = totalNeto,
+                FechaEmision = DateTime.UtcNow,
+                EstadoPago = "Pendiente"
+            };
+
+            await _unitOfWork.Repository<Factura>().AddAsync(factura);
+
+            // 4. Guardar cambios en el contexto
+            await _unitOfWork.CompleteAsync();
+
+            // 5. Confirmar transacción de forma única y limpia
+            await _unitOfWork.CommitTransactionAsync();
+
+            return null;
         }
-
-        var subtotalManoObra = await _unitOfWork.Repository<DetalleOrdenServicio>()
-            .SumAsync(d => d.IdOrdenServicio == dto.OrdenServicioId, d => d.PrecioManoObraHistorico * d.HorasEstimadas);
-
-        var subtotalRepuestos = await _unitOfWork.Repository<DetalleOrdenRepuesto>()
-            .SumAsync(r => r.OrdenServicioId == dto.OrdenServicioId, r => r.PrecioVentaHistorico * r.Cantidad);
-
-        // Defensive checks to make sure we force to 0.0m if any values are invalid or null (decimal is non-nullable, but let's be extremely explicit)
-        subtotalManoObra = subtotalManoObra < 0 ? 0.0m : subtotalManoObra;
-        subtotalRepuestos = subtotalRepuestos < 0 ? 0.0m : subtotalRepuestos;
-
-        var subtotalGeneral = subtotalManoObra + subtotalRepuestos;
-        var impuestos = subtotalGeneral * 0.19m;
-        var totalNeto = subtotalGeneral + impuestos;
-
-        var factura = new Factura
+        catch
         {
-            OrdenServicioId = dto.OrdenServicioId,
-            NumeroFactura = "FAC-" + Guid.NewGuid().ToString()[..8].ToUpper(),
-            SubtotalManoObra = subtotalManoObra,
-            SubtotalRepuestos = subtotalRepuestos,
-            TotalImpuestos = impuestos,
-            TotalNeto = totalNeto,
-            FechaEmision = DateTime.UtcNow,
-            EstadoPago = "Pendiente"
-        };
-
-        orden.Estado = "Finalizada";
-        orden.FechaEntrega = DateTime.UtcNow;
-
-        await _unitOfWork.Repository<Factura>().AddAsync(factura);
-        await _unitOfWork.CompleteAsync();
-
-        return null;
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 }
