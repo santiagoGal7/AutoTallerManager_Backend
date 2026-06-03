@@ -11,6 +11,10 @@ public class CrearOrdenServicioDtoValidator : AbstractValidator<CrearOrdenServic
             .NotEmpty().WithMessage("El ID del vehículo es obligatorio.")
             .GreaterThan(0).WithMessage("El ID del vehículo debe ser mayor a cero.");
 
+        RuleFor(x => x.ClienteId)
+            .NotEmpty().WithMessage("El ID del cliente es obligatorio.")
+            .GreaterThan(0).WithMessage("El ID del cliente debe ser mayor a cero.");
+
         RuleFor(x => x.DescripcionProblema)
             .NotEmpty().WithMessage("La descripción del problema o síntoma es obligatoria.");
 

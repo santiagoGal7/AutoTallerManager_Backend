@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs.Clientes;
 using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Domain.Entities;
@@ -19,125 +23,155 @@ public class ClienteService : IClienteService
 
     public async Task<ClienteResponseDto> RegistrarClienteConVehiculoAsync(CrearClienteDto dto)
     {
-        // a) Usar el repositorio de Cliente para verificar mediante una expresión si el correo electrónico ya está registrado.
-        var existeCorreo = await _unitOfWork.Repository<Cliente>()
-            .AnyAsync(c => c.Correo.ToLower() == dto.Correo.ToLower());
-
-        if (existeCorreo)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            throw new BusinessException($"El correo electrónico '{dto.Correo}' ya se encuentra registrado en el sistema.");
-        }
+            // a) Usar el repositorio de Cliente para verificar mediante una expresión si el correo electrónico ya está registrado.
+            var existeCorreo = await _unitOfWork.Repository<Cliente>()
+                .AnyAsync(c => c.Correo.ToLower() == dto.Correo.ToLower());
 
-        // b) Si el correo es único, mapear el DTO a la entidad de dominio 'Cliente'.
-        var nuevoCliente = new Cliente
-        {
-            Nombre = dto.Nombre,
-            Telefono = dto.Telefono,
-            Correo = dto.Correo,
-            FechaRegistro = DateTime.UtcNow,
-            Vehiculos = new List<Vehiculo>() // Inicializar la lista limpia
-        };
-
-        // Validación defensiva y asíncrona de VINs duplicados en la base de datos (con ToUpper() para consistencia tipográfica)
-        var vehiculoRepository = _unitOfWork.Repository<Vehiculo>();
-
-        if (dto.VehiculoInicial != null)
-        {
-            var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == dto.VehiculoInicial.VIN.ToUpper());
-            if (existeVin)
+            if (existeCorreo)
             {
-                throw new BusinessException($"El número de chasis (VIN) '{dto.VehiculoInicial.VIN}' ya se encuentra registrado en el sistema.");
+                throw new BusinessException($"El correo electrónico '{dto.Correo}' ya se encuentra registrado en el sistema.");
             }
-        }
 
-        if (dto.Vehiculos != null && dto.Vehiculos.Any())
-        {
-            foreach (var vDto in dto.Vehiculos)
+            // Validación defensiva y asíncrona de VINs duplicados en la base de datos
+            var vehiculoRepository = _unitOfWork.Repository<Vehiculo>();
+
+            if (dto.VehiculoInicial != null)
             {
-                var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == vDto.VIN.ToUpper());
+                var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == dto.VehiculoInicial.VIN.ToUpper());
                 if (existeVin)
                 {
-                    throw new BusinessException($"El número de chasis (VIN) '{vDto.VIN}' ya se encuentra registrado en el sistema.");
+                    throw new BusinessException($"El número de chasis (VIN) '{dto.VehiculoInicial.VIN}' ya se encuentra registrado en el sistema.");
                 }
             }
-        }
 
-        // c) Mapear manualmente los vehículos del DTO a la entidad de dominio (soporta tanto DTO único como colección)
-        if (dto.VehiculoInicial != null)
-        {
-            var vehiculo = new Vehiculo
+            if (dto.Vehiculos != null && dto.Vehiculos.Any())
             {
-                Marca = dto.VehiculoInicial.Marca,
-                Modelo = dto.VehiculoInicial.Modelo,
-                Anio = dto.VehiculoInicial.Anio,
-                VIN = dto.VehiculoInicial.VIN,
-                Cliente = nuevoCliente, // Relación al padre explícita
-                HistorialesKilometraje = new List<HistorialKilometraje>()
-            };
+                foreach (var vDto in dto.Vehiculos)
+                {
+                    var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == vDto.VIN.ToUpper());
+                    if (existeVin)
+                    {
+                        throw new BusinessException($"El número de chasis (VIN) '{vDto.VIN}' ya se encuentra registrado en el sistema.");
+                    }
+                }
+            }
 
-            var historial = new HistorialKilometraje
+            // b) Crear credenciales de acceso para el nuevo cliente (Usuario) si no existe en la base de datos
+            var usuarioRepository = _unitOfWork.Repository<Usuario>();
+            var usuarioExistente = usuarioRepository.Find(u => u.Correo.ToLower() == dto.Correo.ToLower()).FirstOrDefault();
+            
+            int usuarioId;
+            if (usuarioExistente == null)
             {
-                Kilometraje = dto.VehiculoInicial.Kilometraje,
-                FechaLectura = DateTime.UtcNow,
-                OrigenLectura = "Registro Inicial",
-                Vehiculo = vehiculo
+                var nuevoUsuario = new Usuario
+                {
+                    Nombre = dto.Nombre,
+                    Correo = dto.Correo,
+                    Rol = "Cliente",
+                    Activo = true,
+                    ContrasenaHash = _passwordHasher.HashPassword("Cliente123*")
+                };
+                await usuarioRepository.AddAsync(nuevoUsuario);
+                
+                // Ejecuta un SaveChangesAsync() intermedio para que PostgreSQL asigne y devuelva el Id
+                await _unitOfWork.SaveChangesAsync();
+                
+                usuarioId = nuevoUsuario.Id;
+            }
+            else
+            {
+                usuarioId = usuarioExistente.Id;
+            }
+
+            // c) Instanciar la entidad Cliente y asignar explícitamente la FK: cliente.UsuarioId = usuarioId
+            var nuevoCliente = new Cliente
+            {
+                Nombre = dto.Nombre,
+                Telefono = dto.Telefono,
+                Correo = dto.Correo,
+                FechaRegistro = DateTime.UtcNow,
+                UsuarioId = usuarioId
             };
-            vehiculo.HistorialesKilometraje.Add(historial);
+            
+            await _unitOfWork.Repository<Cliente>().AddAsync(nuevoCliente);
+            // SaveChangesAsync intermedio para obtener el Id del cliente
+            await _unitOfWork.SaveChangesAsync();
 
-            nuevoCliente.Vehiculos.Add(vehiculo);
-        }
+            // d) Unificación de Creación de Vehículos asignando la FK (IdCliente) de forma estricta
+            var vehiculosParaInsertar = new List<Vehiculo>();
 
-        if (dto.Vehiculos != null && dto.Vehiculos.Any())
-        {
-            foreach (var vDto in dto.Vehiculos)
+            if (dto.VehiculoInicial != null)
             {
                 var vehiculo = new Vehiculo
                 {
-                    Marca = vDto.Marca,
-                    Modelo = vDto.Modelo,
-                    Anio = vDto.Anio,
-                    VIN = vDto.VIN,
-                    Cliente = nuevoCliente, // Relación al padre explícita
+                    Marca = dto.VehiculoInicial.Marca,
+                    Modelo = dto.VehiculoInicial.Modelo,
+                    Anio = dto.VehiculoInicial.Anio,
+                    VIN = dto.VehiculoInicial.VIN,
+                    IdCliente = nuevoCliente.Id, // Asignación de FK
                     HistorialesKilometraje = new List<HistorialKilometraje>()
                 };
 
                 var historial = new HistorialKilometraje
                 {
-                    Kilometraje = vDto.Kilometraje,
+                    Kilometraje = dto.VehiculoInicial.Kilometraje,
                     FechaLectura = DateTime.UtcNow,
                     OrigenLectura = "Registro Inicial",
                     Vehiculo = vehiculo
                 };
                 vehiculo.HistorialesKilometraje.Add(historial);
-
-                nuevoCliente.Vehiculos.Add(vehiculo);
+                vehiculosParaInsertar.Add(vehiculo);
             }
-        }
 
-        // d) Guardar la entidad raíz (guardará automáticamente toda la cascada en la misma transacción)
-        await _unitOfWork.Repository<Cliente>().AddAsync(nuevoCliente);
-        
-        // AUTOMÁTICAMENTE CREAR VÍNCULO CON LA TABLA DE USUARIOS PARA ROL "Cliente"
-        var usuarioRepository = _unitOfWork.Repository<Usuario>();
-        var existeUsuario = await usuarioRepository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
-        if (!existeUsuario)
-        {
-            var nuevoUsuario = new Usuario
+            if (dto.Vehiculos != null && dto.Vehiculos.Any())
             {
-                Nombre = dto.Nombre,
-                Correo = dto.Correo,
-                Rol = "Cliente",
-                Activo = true
-            };
-            nuevoUsuario.ContrasenaHash = _passwordHasher.HashPassword("Cliente123*");
-            
-            await usuarioRepository.AddAsync(nuevoUsuario);
+                foreach (var vDto in dto.Vehiculos)
+                {
+                    var vehiculo = new Vehiculo
+                    {
+                        Marca = vDto.Marca,
+                        Modelo = vDto.Modelo,
+                        Anio = vDto.Anio,
+                        VIN = vDto.VIN,
+                        IdCliente = nuevoCliente.Id, // Asignación de FK
+                        HistorialesKilometraje = new List<HistorialKilometraje>()
+                    };
+
+                    var historial = new HistorialKilometraje
+                    {
+                        Kilometraje = vDto.Kilometraje,
+                        FechaLectura = DateTime.UtcNow,
+                        OrigenLectura = "Registro Inicial",
+                        Vehiculo = vehiculo
+                    };
+                    vehiculo.HistorialesKilometraje.Add(historial);
+                    vehiculosParaInsertar.Add(vehiculo);
+                }
+            }
+
+            // Agregar cada vehículo al repositorio
+            foreach (var vehiculo in vehiculosParaInsertar)
+            {
+                await vehiculoRepository.AddAsync(vehiculo);
+            }
+
+            // SaveChanges final y Commit
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            // Vinculación en memoria para mantener integridad de la respuesta DTO
+            nuevoCliente.Vehiculos = vehiculosParaInsertar;
+
+            return nuevoCliente.Adapt<ClienteResponseDto>();
         }
-
-        // e) Confirmar la transacción atómica
-        await _unitOfWork.CompleteAsync();
-
-        // f) Retornar la respuesta mapeando mediante Mapster
-        return nuevoCliente.Adapt<ClienteResponseDto>();
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
     }
 }
+

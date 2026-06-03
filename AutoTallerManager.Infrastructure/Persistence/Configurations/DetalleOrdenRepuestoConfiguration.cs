@@ -21,7 +21,7 @@ public class DetalleOrdenRepuestoConfiguration : IEntityTypeConfiguration<Detall
 
         // Relación Muchos a Uno con la Orden de Servicio Madre (Borrado en Cascada)
         builder.HasOne(dor => dor.OrdenServicio)
-            .WithMany()
+            .WithMany(o => o.DetallesRepuesto)
             .HasForeignKey(dor => dor.OrdenServicioId)
             .OnDelete(DeleteBehavior.Cascade);
 

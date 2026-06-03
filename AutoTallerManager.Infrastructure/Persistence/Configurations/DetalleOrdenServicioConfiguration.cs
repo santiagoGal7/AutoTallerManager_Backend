@@ -19,9 +19,12 @@ public class DetalleOrdenServicioConfiguration : IEntityTypeConfiguration<Detall
         builder.Property(dos => dos.HorasEstimadas)
             .IsRequired();
 
+        builder.Property(dos => dos.HorasReales)
+            .IsRequired(false);
+
         // Relación Muchos a Uno con la Orden Madre (Cascada: Si cae la orden, cae su desglose)
         builder.HasOne(dos => dos.OrdenServicio)
-            .WithMany()
+            .WithMany(o => o.DetallesServicio)
             .HasForeignKey(dos => dos.IdOrdenServicio)
             .OnDelete(DeleteBehavior.Cascade);
 

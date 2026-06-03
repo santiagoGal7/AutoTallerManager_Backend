@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using AutoTallerManager.Domain.Exceptions;
 
 namespace AutoTallerManager.Domain.Entities;
 
@@ -15,16 +19,31 @@ public class OrdenServicio
     public decimal? CostoTotal { get; private set; }
     public int? MecanicoId { get; private set; }
 
+    [NotMapped]
+    public decimal Subtotal { get; private set; } = 0.0m;
+
+    [NotMapped]
+    public decimal Impuestos { get; private set; } = 0.0m;
+
+    [NotMapped]
+    public decimal Total { get; private set; } = 0.0m;
+
     // Propiedad de navegación hacia el vehículo
     public virtual Vehiculo Vehiculo { get; set; } = null!;
+
+    // Colecciones de navegación para detalles de la orden
+    public virtual ICollection<DetalleOrdenServicio> DetallesServicio { get; private set; } = new List<DetalleOrdenServicio>();
+    public virtual ICollection<DetalleOrdenRepuesto> DetallesRepuesto { get; private set; } = new List<DetalleOrdenRepuesto>();
 
     // Constructor vacío requerido por Entity Framework Core
     public OrdenServicio()
     {
+        DetallesServicio = new List<DetalleOrdenServicio>();
+        DetallesRepuesto = new List<DetalleOrdenRepuesto>();
     }
 
     // Constructor de negocio para garantizar la existencia de objetos válidos en memoria
-    public OrdenServicio(int vehiculoId, string descripcionProblema, decimal costoEstimado)
+    public OrdenServicio(int vehiculoId, string descripcionProblema, decimal costoEstimado) : this()
     {
         if (vehiculoId <= 0)
             throw new ArgumentException("La orden debe estar asociada a un vehículo válido.", nameof(vehiculoId));
@@ -117,6 +136,60 @@ public class OrdenServicio
     {
         CambiarEstado("Finalizada");
         FechaEntrega = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Agrega un detalle de servicio a la orden validando el estado actual.
+    /// </summary>
+    public void AgregarDetalle(DetalleOrdenServicio detalle)
+    {
+        if (Estado == "Finalizada")
+            throw new DomainException("No se pueden agregar repuestos a una orden cerrada.");
+
+        if (detalle == null)
+            throw new ArgumentNullException(nameof(detalle));
+
+        DetallesServicio.Add(detalle);
+    }
+
+    /// <summary>
+    /// Agrega un detalle de repuesto a la orden validando el estado actual.
+    /// </summary>
+    public void AgregarDetalle(DetalleOrdenRepuesto detalle)
+    {
+        if (Estado == "Finalizada")
+            throw new DomainException("No se pueden agregar repuestos a una orden cerrada.");
+
+        if (detalle == null)
+            throw new ArgumentNullException(nameof(detalle));
+
+        DetallesRepuesto.Add(detalle);
+    }
+
+    /// <summary>
+    /// Realiza de forma centralizada el cálculo financiero basándose en los detalles cargados.
+    /// </summary>
+    public void CalcularTotales(decimal porcentajeImpuesto)
+    {
+        if (porcentajeImpuesto < 0)
+            throw new ArgumentException("El porcentaje de impuesto no puede ser negativo.", nameof(porcentajeImpuesto));
+
+        var subtotalManoObra = DetallesServicio.Sum(d => 
+        {
+            var horas = (Estado == "Finalizada" || d.HorasReales.HasValue)
+                ? (d.HorasReales ?? d.HorasEstimadas)
+                : d.HorasEstimadas;
+            return d.PrecioManoObraHistorico * horas;
+        });
+
+        var subtotalRepuestos = DetallesRepuesto.Sum(r => r.PrecioVentaHistorico * r.Cantidad);
+
+        Subtotal = subtotalManoObra + subtotalRepuestos;
+        Impuestos = Subtotal * porcentajeImpuesto;
+        Total = Subtotal + Impuestos;
+
+        // Sincronizar el campo persistente de base de datos
+        CostoTotal = Total;
     }
 
     /// <summary>
