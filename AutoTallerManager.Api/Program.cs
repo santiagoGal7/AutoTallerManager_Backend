@@ -71,7 +71,7 @@ builder.Services.AddDbContext<AutoTallerDbContext>(options =>
     options.UseNpgsql(connectionString, b => 
         b.MigrationsAssembly("AutoTallerManager.Infrastructure"))); // Define dónde se guardarán físicamente las migraciones
 
-// REGISTRO DE PATRONES DE PERSISTENCIA (REPOSITORIO GENÉRICO Y UNIT OF WORK)
+// REGISTRO DE PATRONES DE PERSISTENCIA (CONSOLIDACIÓN Y UNIFICACIÓN DE CICLO DE VIDA SCOPED - PUNTO 5 AUDITORÍA)
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -81,6 +81,7 @@ builder.Services.AddScoped<IOrdenServicioService, OrdenServicioService>();
 builder.Services.AddScoped<IServicioTallerService, ServicioTallerService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddSingleton<IPasswordHasher, BcIdentityPasswordHasher>();
 builder.Services.AddSingleton<ITokenBlocklistService, TokenBlocklistService>(); // Registro del servicio de bloqueo de tokens
 builder.Services.AddApplicationServices(); // Registrar validadores de FluentValidation
 MapsterConfig.RegisterMappings();
@@ -229,38 +230,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// SEMBRADO INICIAL DE USUARIO ADMINISTRADOR
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<AutoTallerDbContext>();
-        context.Database.EnsureCreated();
-        
-        if (!context.Usuarios.Any())
-        {
-            var adminUser = new Usuario
-            {
-                Nombre = "Administrador del Sistema",
-                Correo = "admin@autotaller.com",
-                Rol = "Admin",
-                Activo = true
-            };
-            var passwordHasher = new PasswordHasher<Usuario>();
-            adminUser.ContrasenaHash = passwordHasher.HashPassword(adminUser, "Admin123*");
-            
-            context.Usuarios.Add(adminUser);
-            context.SaveChanges();
-            
-            Console.WriteLine("--> Usuario administrador por defecto sembrado exitosamente: admin@autotaller.com / Admin123*");
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"--> Error durante la siembra de base de datos: {ex.Message}");
-    }
-}
+// INICIALIZACIÓN DE BASE DE DATOS (MIGRACIONES Y SEEDING SEGURO)
+await DatabaseInitializer.InitializeDatabaseAsync(app.Services);
 
 app.Run();
 

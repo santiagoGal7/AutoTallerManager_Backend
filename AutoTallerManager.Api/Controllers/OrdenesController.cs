@@ -140,9 +140,9 @@ public class OrdenesController : ControllerBase
             return Unauthorized(new { mensaje = "Usuario no autenticado." });
         }
 
-        // 1. Obtener el usuario autenticado (búsqueda directa)
+        // 1. Obtener el usuario autenticado (búsqueda directa con puerto sobrecargado entero)
         var usuarioRepository = _unitOfWork.Repository<Usuario>();
-        var usuario = await usuarioRepository.GetByIntIdAsync(usuarioId);
+        var usuario = await usuarioRepository.GetByIdAsync(usuarioId);
         if (usuario == null)
         {
             return NotFound(new { mensaje = "Usuario no encontrado." });

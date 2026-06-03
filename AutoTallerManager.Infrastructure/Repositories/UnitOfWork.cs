@@ -8,7 +8,6 @@ public class UnitOfWork : IUnitOfWork
 {
     private readonly AutoTallerDbContext _context;
     private readonly ConcurrentDictionary<string, object> _repositories;
-    private bool _disposed;
 
     public UnitOfWork(AutoTallerDbContext context)
     {
@@ -81,22 +80,4 @@ public class UnitOfWork : IUnitOfWork
         }
     }
 
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposed)
-        {
-            if (disposing)
-            {
-                _currentTransaction?.Dispose();
-                _context.Dispose();
-            }
-            _disposed = true;
-        }
-    }
 }

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs.Auth;
 using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Domain.Entities;
+using AutoTallerManager.Application.Exceptions;
 using Mapster;
-using Microsoft.AspNetCore.Identity;
 
 namespace AutoTallerManager.Application.Services;
 
@@ -14,14 +14,14 @@ public class UsuarioService : IUsuarioService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
-    private readonly PasswordHasher<Usuario> _passwordHasher;
+    private readonly IPasswordHasher _passwordHasher;
     private static readonly IReadOnlyCollection<string> AllowedRoles = new[] { "Admin", "Mecanico", "Recepcionista", "Cliente" };
 
-    public UsuarioService(IUnitOfWork unitOfWork, ITokenService tokenService)
+    public UsuarioService(IUnitOfWork unitOfWork, ITokenService tokenService, IPasswordHasher passwordHasher)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
-        _passwordHasher = new PasswordHasher<Usuario>();
+        _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
     }
 
     public async Task<LoginResponseDto?> LoginAsync(LoginDto dto)
@@ -39,9 +39,9 @@ public class UsuarioService : IUsuarioService
             return null;
         }
 
-        // Verificar la contraseña hash
-        var result = _passwordHasher.VerifyHashedPassword(usuario, usuario.ContrasenaHash, dto.Contrasena);
-        if (result == PasswordVerificationResult.Failed)
+        // Verificar la contraseña hash de forma agnóstica a través del puerto
+        var isPasswordValid = _passwordHasher.VerifyPassword(usuario.ContrasenaHash, dto.Contrasena);
+        if (!isPasswordValid)
         {
             return null;
         }
@@ -70,7 +70,7 @@ public class UsuarioService : IUsuarioService
         var existe = await repository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
         if (existe)
         {
-            throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
+            throw new BusinessException($"El correo electrónico '{dto.Correo}' ya se encuentra registrado en el sistema.");
         }
 
         // Crear la entidad
@@ -82,8 +82,8 @@ public class UsuarioService : IUsuarioService
             Activo = true
         };
 
-        // Hashear contraseña
-        usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, dto.Contrasena);
+        // Hashear contraseña de forma agnóstica a través del puerto
+        usuario.ContrasenaHash = _passwordHasher.HashPassword(dto.Contrasena);
 
         // Guardar en la base de datos
         await repository.AddAsync(usuario);
@@ -116,7 +116,7 @@ public class UsuarioService : IUsuarioService
             var existe = await repository.AnyAsync(u => u.Correo.ToLower() == dto.Correo.ToLower());
             if (existe)
             {
-                throw new InvalidOperationException($"El correo '{dto.Correo}' ya se encuentra registrado.");
+                throw new BusinessException($"El correo electrónico '{dto.Correo}' ya se encuentra registrado en el sistema.");
             }
 
             // Crear la entidad
@@ -128,8 +128,8 @@ public class UsuarioService : IUsuarioService
                 Activo = true
             };
 
-            // Hashear contraseña
-            usuario.ContrasenaHash = _passwordHasher.HashPassword(usuario, dto.Contrasena);
+            // Hashear contraseña de forma agnóstica a través del puerto
+            usuario.ContrasenaHash = _passwordHasher.HashPassword(dto.Contrasena);
 
             // Guardar en la base de datos
             await repository.AddAsync(usuario);
@@ -165,5 +165,16 @@ public class UsuarioService : IUsuarioService
         var repository = _unitOfWork.Repository<Usuario>();
         var usuarios = await repository.GetAllAsync();
         return usuarios.Adapt<IEnumerable<UsuarioResponseDto>>();
+    }
+
+    public async Task<UsuarioResponseDto?> ObtenerPorIdAsync(int id)
+    {
+        var repository = _unitOfWork.Repository<Usuario>();
+        var usuario = await repository.GetByIdAsync(id);
+        if (usuario == null)
+        {
+            return null;
+        }
+        return usuario.Adapt<UsuarioResponseDto>();
     }
 }

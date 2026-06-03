@@ -34,7 +34,7 @@ public class ClientesController : ControllerBase
         try
         {
             var resultado = await _clienteService.RegistrarClienteConVehiculoAsync(dto);
-            return Created(string.Empty, resultado);
+            return CreatedAtAction(nameof(ObtenerClientePorId), new { id = resultado.Id }, resultado);
         }
         catch (InvalidOperationException ex)
         {
@@ -73,7 +73,7 @@ public class ClientesController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> ObtenerClientePorId(int id)
+    public async Task<ActionResult<ClienteResponseDto>> ObtenerClientePorId(int id)
     {
         var repository = _unitOfWork.Repository<Cliente>();
         var cliente = await repository.GetByIntIdAsync(id);
@@ -92,7 +92,8 @@ public class ClientesController : ControllerBase
             return Forbid(); // Retornar 403 Forbidden si un Cliente intenta acceder a la info de otro cliente
         }
 
-        return Ok(cliente);
+        var respuesta = cliente.Adapt<ClienteResponseDto>();
+        return Ok(respuesta);
     }
 }
 

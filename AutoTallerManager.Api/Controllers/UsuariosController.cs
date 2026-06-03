@@ -40,7 +40,7 @@ public class UsuariosController : ControllerBase
 
     [HttpPost("registrar")]
     [AllowAnonymous]
-    public async Task<IActionResult> Registrar([FromBody] RegistroDto dto)
+    public async Task<ActionResult<UsuarioResponseDto>> Registrar([FromBody] RegistroDto dto)
     {
         if (!ModelState.IsValid)
         {
@@ -50,7 +50,7 @@ public class UsuariosController : ControllerBase
         try
         {
             var result = await _usuarioService.RegistrarAsync(dto);
-            return Created(string.Empty, result);
+            return CreatedAtAction(nameof(ObtenerPorId), new { id = result.Id }, result);
         }
         catch (InvalidOperationException ex)
         {
@@ -101,6 +101,37 @@ public class UsuariosController : ControllerBase
     {
         var result = await _usuarioService.ObtenerTodosAsync();
         return Ok(result);
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<UsuarioResponseDto>> ObtenerPorId(int id)
+    {
+        var usuario = await _usuarioService.ObtenerPorIdAsync(id);
+        if (usuario == null)
+        {
+            return NotFound(new { mensaje = "El usuario especificado no existe." });
+        }
+
+        return Ok(usuario);
+    }
+
+    [HttpGet("perfil")]
+    [Authorize]
+    public async Task<IActionResult> ObtenerPerfil()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var usuarioId))
+        {
+            return Unauthorized(new { mensaje = "El token de usuario no contiene un identificador válido." });
+        }
+
+        var usuario = await _usuarioService.ObtenerPorIdAsync(usuarioId);
+        if (usuario == null)
+        {
+            return NotFound(new { mensaje = "El usuario asociado a este token no existe en el sistema." });
+        }
+
+        return Ok(usuario);
     }
 }
 

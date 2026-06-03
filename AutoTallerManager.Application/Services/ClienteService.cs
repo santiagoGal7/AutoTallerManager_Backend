@@ -1,6 +1,7 @@
 using AutoTallerManager.Application.DTOs.Clientes;
 using AutoTallerManager.Application.Interfaces;
 using AutoTallerManager.Domain.Entities;
+using AutoTallerManager.Application.Exceptions;
 using Mapster;
 
 namespace AutoTallerManager.Application.Services;
@@ -8,10 +9,12 @@ namespace AutoTallerManager.Application.Services;
 public class ClienteService : IClienteService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPasswordHasher _passwordHasher;
 
-    public ClienteService(IUnitOfWork unitOfWork)
+    public ClienteService(IUnitOfWork unitOfWork, IPasswordHasher passwordHasher)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _passwordHasher = passwordHasher ?? throw new ArgumentNullException(nameof(passwordHasher));
     }
 
     public async Task<ClienteResponseDto> RegistrarClienteConVehiculoAsync(CrearClienteDto dto)
@@ -22,7 +25,7 @@ public class ClienteService : IClienteService
 
         if (existeCorreo)
         {
-            throw new InvalidOperationException("El correo ya se encuentra registrado.");
+            throw new BusinessException($"El correo electrónico '{dto.Correo}' ya se encuentra registrado en el sistema.");
         }
 
         // b) Si el correo es único, mapear el DTO a la entidad de dominio 'Cliente'.
@@ -34,6 +37,30 @@ public class ClienteService : IClienteService
             FechaRegistro = DateTime.UtcNow,
             Vehiculos = new List<Vehiculo>() // Inicializar la lista limpia
         };
+
+        // Validación defensiva y asíncrona de VINs duplicados en la base de datos (con ToUpper() para consistencia tipográfica)
+        var vehiculoRepository = _unitOfWork.Repository<Vehiculo>();
+
+        if (dto.VehiculoInicial != null)
+        {
+            var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == dto.VehiculoInicial.VIN.ToUpper());
+            if (existeVin)
+            {
+                throw new BusinessException($"El número de chasis (VIN) '{dto.VehiculoInicial.VIN}' ya se encuentra registrado en el sistema.");
+            }
+        }
+
+        if (dto.Vehiculos != null && dto.Vehiculos.Any())
+        {
+            foreach (var vDto in dto.Vehiculos)
+            {
+                var existeVin = await vehiculoRepository.AnyAsync(v => v.VIN.ToUpper() == vDto.VIN.ToUpper());
+                if (existeVin)
+                {
+                    throw new BusinessException($"El número de chasis (VIN) '{vDto.VIN}' ya se encuentra registrado en el sistema.");
+                }
+            }
+        }
 
         // c) Mapear manualmente los vehículos del DTO a la entidad de dominio (soporta tanto DTO único como colección)
         if (dto.VehiculoInicial != null)
@@ -102,8 +129,7 @@ public class ClienteService : IClienteService
                 Rol = "Cliente",
                 Activo = true
             };
-            var passwordHasher = new Microsoft.AspNetCore.Identity.PasswordHasher<Usuario>();
-            nuevoUsuario.ContrasenaHash = passwordHasher.HashPassword(nuevoUsuario, "Cliente123*");
+            nuevoUsuario.ContrasenaHash = _passwordHasher.HashPassword("Cliente123*");
             
             await usuarioRepository.AddAsync(nuevoUsuario);
         }

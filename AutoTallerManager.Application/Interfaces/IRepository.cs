@@ -5,6 +5,7 @@ namespace AutoTallerManager.Application.Interfaces;
 public interface IRepository<T> where T : class
 {
     Task<T?> GetByIdAsync(Guid id);
+    Task<T?> GetByIdAsync(int id);
     Task<T?> GetByIntIdAsync(int id);
     Task<IEnumerable<T>> GetAllAsync();
     Task<(IEnumerable<T> Items, int TotalCount)> GetAllPagedAsync(int pageNumber, int pageSize);
