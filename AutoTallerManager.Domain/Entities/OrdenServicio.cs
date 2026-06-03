@@ -19,13 +19,10 @@ public class OrdenServicio
     public decimal? CostoTotal { get; private set; }
     public int? MecanicoId { get; private set; }
 
-    [NotMapped]
     public decimal Subtotal { get; private set; } = 0.0m;
 
-    [NotMapped]
     public decimal Impuestos { get; private set; } = 0.0m;
 
-    [NotMapped]
     public decimal Total { get; private set; } = 0.0m;
 
     // Propiedad de navegación hacia el vehículo

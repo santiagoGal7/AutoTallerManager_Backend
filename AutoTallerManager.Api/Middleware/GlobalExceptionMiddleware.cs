@@ -57,9 +57,10 @@ public class GlobalExceptionMiddleware
         }
         else
         {
-            // En producción, registramos de forma sanitizada. No volcamos la pila completa ni detalles internos de la BD en texto plano
+            // En producción, registramos el error completo con su stack trace a nivel de servidor por observabilidad, sin filtrarlo al cliente
             _logger.LogError(
-                "Error no controlado en producción. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}] [SanitizedMessage: Ocurrió una falla interna en el servidor.]",
+                exception,
+                "Error no controlado en producción. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]",
                 correlationId.ToString(),
                 context.Request.Path,
                 context.Request.Method
@@ -101,8 +102,7 @@ public class GlobalExceptionMiddleware
                 // En producción enmascara la excepción por seguridad y solo retorna un mensaje genérico con el CorrelationId
                 responsePayload = new
                 {
-                    status = StatusCodes.Status500InternalServerError,
-                    mensaje = "Ocurrió un error interno en el servidor al procesar la solicitud. Por favor, contacte al soporte técnico con su CorrelationId.",
+                    error = "Ocurrió un problema interno",
                     correlationId = correlationId.ToString()
                 };
             }

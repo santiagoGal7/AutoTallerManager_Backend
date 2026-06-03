@@ -178,4 +178,95 @@ public class OrdenesController : ControllerBase
 
         return Ok(items);
     }
+
+    [HttpPost("{id}/asignar-mecanico")]
+    [Authorize(Roles = "Admin,Recepcionista")]
+    public async Task<IActionResult> AsignarMecanico(int id, [FromBody] AsignarMecanicoDto dto)
+    {
+        if (dto == null)
+        {
+            return BadRequest(new { mensaje = "Los datos de asignación son requeridos." });
+        }
+
+        try
+        {
+            var exitoso = await _ordenServicioService.AsignarMecanicoAsync(id, dto.MecanicoId);
+            if (!exitoso)
+            {
+                return NotFound(new { mensaje = "La orden de servicio especificada no existe." });
+            }
+
+            return Ok(new { exitoso = true, mensaje = "Mecánico asignado exitosamente a la orden de servicio." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "Ocurrió un error interno en el servidor al intentar asignar el mecánico.");
+        }
+    }
+
+    [HttpPatch("{id}/diagnostico")]
+    [Authorize(Roles = "Admin,Mecanico")]
+    public async Task<IActionResult> RegistrarDiagnostico(int id, [FromBody] RegistrarDiagnosticoDto dto)
+    {
+        if (dto == null)
+        {
+            return BadRequest(new { mensaje = "El diagnóstico es obligatorio." });
+        }
+
+        try
+        {
+            var exitoso = await _ordenServicioService.RegistrarDiagnosticoAsync(id, dto.Diagnostico);
+            if (!exitoso)
+            {
+                return NotFound(new { mensaje = "La orden de servicio especificada no existe." });
+            }
+
+            return Ok(new { exitoso = true, mensaje = "Diagnóstico registrado con éxito en la orden de servicio." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "Ocurrió un error interno en el servidor al intentar registrar el diagnóstico.");
+        }
+    }
+
+    [HttpPatch("/api/detalles-orden/{detalleId}/horas-reales")]
+    [Authorize(Roles = "Admin,Mecanico")]
+    public async Task<IActionResult> RegistrarHorasReales(int detalleId, [FromBody] RegistrarHorasRealesDto dto)
+    {
+        if (dto == null)
+        {
+            return BadRequest(new { mensaje = "Las horas reales son requeridas." });
+        }
+
+        try
+        {
+            var exitoso = await _ordenServicioService.RegistrarHorasRealesAsync(detalleId, dto.HorasReales);
+            if (!exitoso)
+            {
+                return NotFound(new { mensaje = "El detalle de la orden de servicio especificado no existe." });
+            }
+
+            return Ok(new { exitoso = true, mensaje = "Horas reales de trabajo registradas con éxito." });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { mensaje = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, "Ocurrió un error interno en el servidor al intentar registrar las horas reales.");
+        }
+    }
 }

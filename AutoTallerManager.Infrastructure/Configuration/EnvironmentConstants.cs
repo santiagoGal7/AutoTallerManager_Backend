@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 
 namespace AutoTallerManager.Infrastructure.Configuration;
 
@@ -11,7 +12,7 @@ public static class EnvironmentConstants
 
     // Valores por defecto seguros para desarrollo local
     private const string DefaultJwtSecret = "Development_Safe_Fallback_Secret_Key_2026_Min_32_Chars!";
-    private const string DefaultConnectionString = "Host=aws-1-us-east-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.jtgbzvldxcqdwchdxxrz;Password=256752984678;Timeout=30;CommandTimeout=30";
+    private const string DefaultConnectionString = "Host=localhost;Database=autotaller;Username=postgres;Password=postgres";
 
     /// <summary>
     /// Retorna la llave secreta para JWT obtenida desde las variables de entorno, o el fallback seguro en desarrollo.
@@ -20,10 +21,53 @@ public static class EnvironmentConstants
         Environment.GetEnvironmentVariable(JwtSecretEnvVar) ?? DefaultJwtSecret;
 
     /// <summary>
-    /// Retorna la cadena de conexión a la base de datos obtenida desde las variables de entorno, o el fallback seguro en desarrollo.
+    /// Retorna la cadena de conexión a la base de datos obtenida desde las variables de entorno, de appsettings.json o del fallback seguro.
     /// </summary>
-    public static string ConnectionString =>
-        Environment.GetEnvironmentVariable(DbConnectionEnvVar) ?? DefaultConnectionString;
+    public static string ConnectionString
+    {
+        get
+        {
+            // 1. Intentar obtener desde variable de entorno
+            var envValue = Environment.GetEnvironmentVariable(DbConnectionEnvVar);
+            if (!string.IsNullOrEmpty(envValue))
+            {
+                return envValue;
+            }
+
+            // 2. Intentar obtener desde appsettings.json
+            try
+            {
+                var rootDir = Directory.GetCurrentDirectory();
+                var jsonPath = Path.Combine(rootDir, "appsettings.json");
+                if (!File.Exists(jsonPath))
+                {
+                    jsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+                }
+
+                if (File.Exists(jsonPath))
+                {
+                    var jsonString = File.ReadAllText(jsonPath);
+                    using var doc = JsonDocument.Parse(jsonString);
+                    if (doc.RootElement.TryGetProperty("ConnectionStrings", out var connStrings) &&
+                        connStrings.TryGetProperty("PostgresConnection", out var postgresConn))
+                    {
+                        var connStr = postgresConn.GetString();
+                        if (!string.IsNullOrEmpty(connStr) && connStr != "YOUR_DATABASE_CONNECTION_STRING_HERE")
+                        {
+                            return connStr;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback silencioso
+            }
+
+            // 3. Fallback seguro de desarrollo local
+            return DefaultConnectionString;
+        }
+    }
 
     /// <summary>
     /// Método utilitario para cargar un archivo .env si existe en la raíz del proyecto (para desarrollo local).

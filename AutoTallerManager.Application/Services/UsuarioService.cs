@@ -64,6 +64,16 @@ public class UsuarioService : IUsuarioService
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
 
+        // Determinar rol asignado con fallback de menor privilegio "Cliente"
+        var rolAsignado = string.IsNullOrWhiteSpace(dto.Rol) ? "Cliente" : dto.Rol.Trim();
+
+        // Control proactivo: Validación contra lista blanca antes de acceder a la base de datos
+        var normalizedRol = AllowedRoles.FirstOrDefault(r => string.Equals(r, rolAsignado, StringComparison.OrdinalIgnoreCase));
+        if (normalizedRol == null)
+        {
+            throw new BusinessException($"El rol '{rolAsignado}' no está permitido en el sistema de negocio.");
+        }
+
         var repository = _unitOfWork.Repository<Usuario>();
         
         // Verificar si el correo ya existe de forma directa en la base de datos
@@ -78,7 +88,7 @@ public class UsuarioService : IUsuarioService
         {
             Nombre = dto.Nombre,
             Correo = dto.Correo,
-            Rol = dto.Rol,
+            Rol = normalizedRol,
             Activo = true
         };
 

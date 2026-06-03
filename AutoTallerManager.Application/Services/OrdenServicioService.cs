@@ -34,7 +34,7 @@ public class OrdenServicioService : IOrdenServicioService
 
         // 3. Guardar la entidad a través del repositorio y confirmar la transacción
         await _unitOfWork.Repository<OrdenServicio>().AddAsync(orden);
-        await _unitOfWork.CompleteAsync();
+        await _unitOfWork.SaveChangesAsync();
 
         return new OrdenServicioResponseDto
         {
@@ -46,49 +46,67 @@ public class OrdenServicioService : IOrdenServicioService
 
     public async Task<bool> AgregarServicioAOrdenAsync(AgregarServicioOrdenDto dto)
     {
-        // 1. Obtener la orden de servicio
-        var orden = _unitOfWork.Repository<OrdenServicio>()
-            .Find(o => o.Id == dto.OrdenServicioId)
-            .FirstOrDefault();
+        if (dto == null)
+            throw new ArgumentNullException(nameof(dto));
 
-        if (orden == null)
+        await _unitOfWork.BeginTransactionAsync();
+        try
         {
-            throw new InvalidOperationException("La orden de servicio especificada no existe.");
+            // 1. Obtener la orden de servicio
+            var orden = _unitOfWork.Repository<OrdenServicio>()
+                .Find(o => o.Id == dto.OrdenServicioId)
+                .FirstOrDefault();
+
+            if (orden == null)
+            {
+                throw new InvalidOperationException("La orden de servicio especificada no existe.");
+            }
+
+            // 2. Valida si el ServicioTallerId existe en el catálogo de servicios. Si no, rebota
+            var servicioRepository = _unitOfWork.Repository<ServicioTaller>();
+            var servicio = await servicioRepository.GetByIntIdAsync(dto.ServicioTallerId);
+
+            if (servicio == null)
+            {
+                throw new InvalidOperationException("El servicio seleccionado no existe en el catálogo del taller.");
+            }
+
+            if (!servicio.Activo)
+            {
+                throw new InvalidOperationException("El servicio seleccionado no está activo en el catálogo del taller.");
+            }
+
+            // Cargar detalles existentes en el DbContext para el relationship fix-up automático
+            _unitOfWork.Repository<DetalleOrdenServicio>()
+                .Find(d => d.IdOrdenServicio == orden.Id)
+                .ToList();
+
+            _unitOfWork.Repository<DetalleOrdenRepuesto>()
+                .Find(r => r.OrdenServicioId == orden.Id)
+                .ToList();
+
+            // 3. Crear el detalle y delegar agregación y cálculo financiero al Dominio
+            var detalle = new DetalleOrdenServicio
+            {
+                IdOrdenServicio = dto.OrdenServicioId,
+                IdServicioTaller = dto.ServicioTallerId,
+                PrecioManoObraHistorico = servicio.TarifaBaseManoObra,
+                HorasEstimadas = dto.HorasEstimadas
+            };
+
+            orden.AgregarDetalle(detalle);
+            orden.CalcularTotales(0.19m); // IVA estándar del 19%
+
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            return true;
         }
-
-        // 2. Valida si el ServicioTallerId existe en el catálogo de servicios. Si no, rebota
-        var existeServicio = await _unitOfWork.Repository<ServicioTaller>()
-            .AnyAsync(s => s.Id == dto.ServicioTallerId);
-
-        if (!existeServicio)
+        catch
         {
-            throw new InvalidOperationException("El servicio seleccionado no existe en el catálogo del taller.");
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
         }
-
-        // Cargar detalles existentes en el DbContext para el relationship fix-up automático
-        _unitOfWork.Repository<DetalleOrdenServicio>()
-            .Find(d => d.IdOrdenServicio == orden.Id)
-            .ToList();
-
-        _unitOfWork.Repository<DetalleOrdenRepuesto>()
-            .Find(r => r.OrdenServicioId == orden.Id)
-            .ToList();
-
-        // 3. Crear el detalle y delegar agregación y cálculo financiero al Dominio
-        var detalle = new DetalleOrdenServicio
-        {
-            IdOrdenServicio = dto.OrdenServicioId,
-            IdServicioTaller = dto.ServicioTallerId,
-            PrecioManoObraHistorico = dto.PrecioManoObraHistorico,
-            HorasEstimadas = dto.HorasEstimadas
-        };
-
-        orden.AgregarDetalle(detalle);
-        orden.CalcularTotales(0.19m); // IVA estándar del 19%
-
-        await _unitOfWork.CompleteAsync();
-
-        return true;
     }
 
     public async Task<string?> AgregarRepuestoAOrdenAsync(AgregarRepuestoOrdenDto dto)
@@ -147,14 +165,14 @@ public class OrdenServicioService : IOrdenServicioService
                 OrdenServicioId = dto.OrdenServicioId,
                 RepuestoId = dto.RepuestoId,
                 Cantidad = dto.Cantidad,
-                PrecioVentaHistorico = dto.PrecioVentaHistorico
+                PrecioVentaHistorico = repuesto.PrecioUnitario
             };
 
             orden.AgregarDetalle(detalleRepuesto);
             orden.CalcularTotales(0.19m); // IVA estándar del 19%
 
             // Guardar cambios dentro de la transacción activa
-            await _unitOfWork.CompleteAsync();
+            await _unitOfWork.SaveChangesAsync();
             
             // Confirmar transacción
             await _unitOfWork.CommitTransactionAsync();
@@ -231,6 +249,12 @@ public class OrdenServicioService : IOrdenServicioService
                 .Find(r => r.OrdenServicioId == orden.Id)
                 .ToList();
 
+            // Validación defensiva de facturación (Anti-Fraude)
+            if (!orden.DetallesServicio.Any() && !orden.DetallesRepuesto.Any())
+            {
+                throw new BusinessException("No se puede facturar ni cerrar una orden que no contiene servicios ni repuestos.");
+            }
+
             // 2. Ejecutar las reglas de negocio usando los métodos encapsulados del dominio
             orden.CalcularTotales(0.19m);
             orden.FinalizarOrden();
@@ -254,12 +278,135 @@ public class OrdenServicioService : IOrdenServicioService
             await _unitOfWork.Repository<Factura>().AddAsync(factura);
 
             // 4. Guardar cambios en el contexto
-            await _unitOfWork.CompleteAsync();
+            await _unitOfWork.SaveChangesAsync();
 
             // 5. Confirmar transacción de forma única y limpia
             await _unitOfWork.CommitTransactionAsync();
 
             return null;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> AsignarMecanicoAsync(int ordenId, int mecanicoId)
+    {
+        if (mecanicoId <= 0)
+            throw new ArgumentException("El ID del mecánico debe ser válido.", nameof(mecanicoId));
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var orden = _unitOfWork.Repository<OrdenServicio>()
+                .Find(o => o.Id == ordenId)
+                .FirstOrDefault();
+
+            if (orden == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return false;
+            }
+
+            var mecanico = await _unitOfWork.Repository<Usuario>().GetByIdAsync(mecanicoId);
+            if (mecanico == null || mecanico.Rol != "Mecanico" || !mecanico.Activo)
+            {
+                throw new InvalidOperationException("El mecánico especificado no existe o no está activo en el sistema.");
+            }
+
+            orden.AsignarMecanico(mecanicoId);
+
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+            return true;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> RegistrarDiagnosticoAsync(int ordenId, string diagnostico)
+    {
+        if (string.IsNullOrWhiteSpace(diagnostico))
+            throw new ArgumentException("El diagnóstico no puede estar vacío.", nameof(diagnostico));
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var orden = _unitOfWork.Repository<OrdenServicio>()
+                .Find(o => o.Id == ordenId)
+                .FirstOrDefault();
+
+            if (orden == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return false;
+            }
+
+            orden.RegistrarDiagnostico(diagnostico);
+
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+            return true;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            throw;
+        }
+    }
+
+    public async Task<bool> RegistrarHorasRealesAsync(int detalleId, int horasReales)
+    {
+        if (horasReales < 0)
+            throw new ArgumentException("Las horas reales no pueden ser negativas.", nameof(horasReales));
+
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            var detalleRepository = _unitOfWork.Repository<DetalleOrdenServicio>();
+            var detalle = await detalleRepository.GetByIntIdAsync(detalleId);
+            if (detalle == null)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                return false;
+            }
+
+            var orden = _unitOfWork.Repository<OrdenServicio>()
+                .Find(o => o.Id == detalle.IdOrdenServicio)
+                .FirstOrDefault();
+
+            if (orden == null)
+            {
+                throw new InvalidOperationException("La orden asociada al detalle no existe.");
+            }
+
+            if (orden.Estado == "Finalizada")
+            {
+                throw new InvalidOperationException("No se pueden registrar horas reales en una orden que ya está finalizada.");
+            }
+
+            // Cargar los otros detalles de la orden para que el recálculo sea correcto
+            _unitOfWork.Repository<DetalleOrdenServicio>()
+                .Find(d => d.IdOrdenServicio == orden.Id)
+                .ToList();
+
+            _unitOfWork.Repository<DetalleOrdenRepuesto>()
+                .Find(r => r.OrdenServicioId == orden.Id)
+                .ToList();
+
+            detalle.EstablecerHorasReales(horasReales);
+
+            // Recalcular los totales de la orden
+            orden.CalcularTotales(0.19m); // IVA estándar del 19%
+
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+            return true;
         }
         catch
         {

@@ -61,9 +61,17 @@ public class AutoTallerDbContext : DbContext
                 .IsRequired(false)
                 .HasColumnType("decimal(18,2)");
 
-            entity.Ignore(os => os.Subtotal);
-            entity.Ignore(os => os.Impuestos);
-            entity.Ignore(os => os.Total);
+            entity.Property(os => os.Subtotal)
+                .IsRequired()
+                .HasColumnType("decimal(18,2)");
+
+            entity.Property(os => os.Impuestos)
+                .IsRequired()
+                .HasColumnType("decimal(18,2)");
+
+            entity.Property(os => os.Total)
+                .IsRequired()
+                .HasColumnType("decimal(18,2)");
 
             // Configurar relación inversa: Un Vehículo tiene muchas Órdenes de forma unificada
             entity.HasOne(d => d.Vehiculo)

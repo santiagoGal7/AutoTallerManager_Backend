@@ -23,6 +23,8 @@ System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultInboundClaimTypeM
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
+
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<AutoTallerManager.Api.Filters.ValidationFilter>();
@@ -81,6 +83,9 @@ builder.Services.AddScoped<IOrdenServicioService, OrdenServicioService>();
 builder.Services.AddScoped<IServicioTallerService, ServicioTallerService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<ICitaService, CitaService>();
+builder.Services.AddScoped<IFacturaService, FacturaService>();
+builder.Services.AddScoped<IGarantiaService, GarantiaService>();
 builder.Services.AddSingleton<IPasswordHasher, BcIdentityPasswordHasher>();
 builder.Services.AddSingleton<ITokenBlocklistService, TokenBlocklistService>(); // Registro del servicio de bloqueo de tokens
 builder.Services.AddApplicationServices(); // Registrar validadores de FluentValidation
@@ -162,31 +167,13 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
         },
         new RateLimitRule
         {
-            Endpoint = "post:/api/Usuarios/login",
-            Period = "1m",
-            Limit = 5
-        },
-        new RateLimitRule
-        {
             Endpoint = "post:/api/usuarios/registrar",
             Period = "1m",
             Limit = 5
         },
         new RateLimitRule
         {
-            Endpoint = "post:/api/Usuarios/registrar",
-            Period = "1m",
-            Limit = 5
-        },
-        new RateLimitRule
-        {
             Endpoint = "*:/api/ordenes/*",
-            Period = "1m",
-            Limit = 60
-        },
-        new RateLimitRule
-        {
-            Endpoint = "*:/api/Ordenes/*",
             Period = "1m",
             Limit = 60
         }
@@ -227,6 +214,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseMiddleware<AutoTallerManager.Api.Middleware.JwtBlocklistMiddleware>(); // Validar revocación de tokens
 app.UseAuthorization();
+app.UseMiddleware<AutoTallerManager.Api.Middleware.AuditoriaMiddleware>();
 
 app.MapControllers();
 
