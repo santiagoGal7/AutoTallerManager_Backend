@@ -2,5 +2,5 @@ namespace AutoTallerManager.Application.DTOs;
 
 public class RegistrarHorasRealesDto
 {
-    public int HorasReales { get; set; }
+    public decimal HorasReales { get; set; }
 }

@@ -140,9 +140,10 @@ builder.Services.AddAuthentication(options =>
         OnAuthenticationFailed = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            if (!context.HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
+            if (!context.HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
             {
                 correlationId = Guid.NewGuid().ToString();
+                context.HttpContext.Request.Headers["X-Correlation-ID"] = correlationId;
             }
             logger.LogWarning(context.Exception, "Fallo en la autenticación JWT. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 
                 correlationId.ToString(), context.HttpContext.Request.Path, context.HttpContext.Request.Method);
@@ -203,6 +204,20 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
 
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+
+// Validación de Entorno (Fail-Fast)
+var envJwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
+var envDbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+
+if (string.IsNullOrWhiteSpace(envJwtSecretKey))
+{
+    throw new InvalidOperationException("La variable de entorno requerida 'JWT_SECRET_KEY' no está configurada.");
+}
+
+if (string.IsNullOrWhiteSpace(envDbConnectionString))
+{
+    throw new InvalidOperationException("La variable de entorno requerida 'DB_CONNECTION_STRING' no está configurada.");
+}
 
 var app = builder.Build();
 

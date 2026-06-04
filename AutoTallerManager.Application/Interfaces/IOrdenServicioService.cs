@@ -14,6 +14,6 @@ public interface IOrdenServicioService
     Task<string?> FacturarYCerrarOrdenAsync(GenerarFacturaDto dto);
     Task<bool> AsignarMecanicoAsync(int ordenId, int mecanicoId);
     Task<bool> RegistrarDiagnosticoAsync(int ordenId, string diagnostico);
-    Task<bool> RegistrarHorasRealesAsync(int detalleId, int horasReales);
+    Task<bool> RegistrarHorasRealesAsync(int detalleId, decimal horasReales);
     Task<(IEnumerable<OrdenServicio> Items, int TotalCount)> GetMisOrdenesPaginadoAsync(int usuarioId, int pageNumber, int pageSize);
 }

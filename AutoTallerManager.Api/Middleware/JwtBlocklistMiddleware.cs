@@ -29,9 +29,10 @@ public class JwtBlocklistMiddleware
             if (!string.IsNullOrEmpty(jti) && await blocklistService.IsTokenBlockedAsync(jti))
             {
                 // Obtener o generar CorrelationId para mantener consistencia absoluta con el GlobalExceptionMiddleware
-                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
+                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
                 {
                     correlationId = Guid.NewGuid().ToString();
+                    context.Request.Headers["X-Correlation-ID"] = correlationId;
                 }
 
                 _logger.LogWarning("Intento de acceso con token revocado bloqueado. [JTI: {Jti}] [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 

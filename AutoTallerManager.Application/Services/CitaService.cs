@@ -22,6 +22,11 @@ public class CitaService : ICitaService
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
 
+        if (dto.FechaHoraReserva == default || dto.FechaHoraReserva.Kind != DateTimeKind.Utc)
+        {
+            throw new BusinessException("El formato de fecha debe ser ISO 8601 UTC (ej: 2026-06-04T08:00:00Z)");
+        }
+
         await _unitOfWork.BeginTransactionAsync();
         try
         {

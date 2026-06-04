@@ -33,6 +33,12 @@ public class AuditoriaMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
+        {
+            correlationId = Guid.NewGuid().ToString();
+            context.Request.Headers["X-Correlation-ID"] = correlationId;
+        }
+
         var method = context.Request.Method;
         var isWrite = method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE";
         var path = (context.Request.Path.Value ?? string.Empty).TrimEnd('/');
@@ -47,17 +53,13 @@ public class AuditoriaMiddleware
                 using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true))
                 {
                     var originalBody = await reader.ReadToEndAsync();
-                    requestBody = SanitizarBody(originalBody);
+                    requestBody = SanitizarBody(originalBody, correlationId.ToString());
                     context.Request.Body.Position = 0;
                 }
             }
             catch (Exception ex)
             {
                 // Loguear error pero no interrumpir la ejecución del pipeline
-                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
-                {
-                    correlationId = Guid.NewGuid().ToString();
-                }
                 _logger.LogWarning(ex, "Advertencia en AuditoriaMiddleware (Lectura/Sanitización). [CorrelationId: {CorrelationId}] [Path: {Path}]", correlationId.ToString(), context.Request.Path);
             }
         }
@@ -106,16 +108,12 @@ public class AuditoriaMiddleware
             catch (Exception ex)
             {
                 // Loguear error pero no interrumpir la respuesta al cliente
-                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
-                {
-                    correlationId = Guid.NewGuid().ToString();
-                }
                 _logger.LogWarning(ex, "Advertencia en AuditoriaMiddleware (Persistencia). [CorrelationId: {CorrelationId}] [Path: {Path}]", correlationId.ToString(), context.Request.Path);
             }
         }
     }
 
-    private string SanitizarBody(string body)
+    private string SanitizarBody(string body, string correlationId)
     {
         if (string.IsNullOrWhiteSpace(body))
         {
@@ -139,7 +137,7 @@ public class AuditoriaMiddleware
         catch (Exception ex)
         {
             // Loguear el error de análisis pero no exponer datos sensibles y retornar JSON vacío.
-            _logger.LogWarning(ex, "Advertencia al sanitizar JSON en el cuerpo de la solicitud.");
+            _logger.LogWarning(ex, "Advertencia al sanitizar JSON en el cuerpo de la solicitud. [CorrelationId: {CorrelationId}]", correlationId);
             return "{}";
         }
     }

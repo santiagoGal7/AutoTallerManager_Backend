@@ -360,7 +360,7 @@ public class OrdenServicioService : IOrdenServicioService
         }
     }
 
-    public async Task<bool> RegistrarHorasRealesAsync(int detalleId, int horasReales)
+    public async Task<bool> RegistrarHorasRealesAsync(int detalleId, decimal horasReales)
     {
         if (horasReales < 0)
             throw new ArgumentException("Las horas reales no pueden ser negativas.", nameof(horasReales));
