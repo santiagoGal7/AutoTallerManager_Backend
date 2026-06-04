@@ -500,22 +500,48 @@ async function submitCliente(event) {
 function renderVehiculos() {
   setView(`
     ${header("Vehiculos", "Consulta del parque automotor y kilometraje reportado.")}
-    <section class="panel">
-      <div class="panel-header">
-        <h3>Vehiculos</h3>
-        <button class="btn secondary" id="reloadVehiculos">Actualizar</button>
+    <section class="layout-grid">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Vehiculos</h3>
+          <button class="btn secondary" id="reloadVehiculos">Actualizar</button>
+        </div>
+        ${table(state.cache.vehiculos, [
+          { label: "ID", key: "id" },
+          { label: "Cliente", render: (x) => x.idCliente ?? x.clienteId ?? "" },
+          { label: "Marca", key: "marca" },
+          { label: "Modelo", key: "modelo" },
+          { label: "Anio", key: "anio" },
+          { label: "VIN", key: "vin" },
+          { label: "Kilometraje", key: "kilometraje" },
+        ])}
       </div>
-      ${table(state.cache.vehiculos, [
-        { label: "ID", key: "id" },
-        { label: "Marca", key: "marca" },
-        { label: "Modelo", key: "modelo" },
-        { label: "Anio", key: "anio" },
-        { label: "VIN", key: "vin" },
-        { label: "Kilometraje", key: "kilometraje" },
-      ])}
+      <div class="panel">
+        <h3>Agregar vehiculo</h3>
+        <form id="vehiculoForm" class="form-grid">
+          <label>Cliente ID<input name="clienteId" type="number" min="1" required /></label>
+          <label>Marca<input name="marca" required /></label>
+          <label>Modelo<input name="modelo" required /></label>
+          <label>Anio<input name="anio" type="number" min="1900" max="2100" required /></label>
+          <label class="span-2">VIN<input name="vin" minlength="17" maxlength="17" required /></label>
+          <label class="span-2">Kilometraje<input name="kilometraje" type="number" min="0" required /></label>
+          <div class="btn-row span-2"><button class="btn" type="submit">Guardar vehiculo</button></div>
+        </form>
+      </div>
     </section>
   `);
   $("#reloadVehiculos").addEventListener("click", refresh(loadVehiculos, renderVehiculos));
+  $("#vehiculoForm").addEventListener("submit", submitVehiculo);
+}
+
+async function submitVehiculo(event) {
+  await postForm(
+    event,
+    "/vehiculos",
+    async () => Promise.allSettled([loadVehiculos(), loadClientes()]),
+    renderVehiculos,
+    "Vehiculo registrado"
+  );
 }
 
 function renderOrdenes() {

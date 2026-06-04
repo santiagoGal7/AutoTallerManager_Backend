@@ -51,7 +51,21 @@ public class ClientesController : ControllerBase
     [Authorize(Roles = "Admin,Recepcionista")]
     public async Task<IActionResult> ListarClientes([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
-        var (items, totalCount) = await _unitOfWork.Repository<Cliente>().GetAllPagedAsync(pageNumber, pageSize);
+        var query = _unitOfWork.Repository<Cliente>()
+            .Find(c => true)
+            .Include(c => c.Vehiculos)
+            .AsNoTracking();
+
+        var totalCount = await query.CountAsync();
+
+        var actualPage = pageNumber < 1 ? 1 : pageNumber;
+        var actualSize = pageSize < 1 ? 10 : pageSize;
+
+        var items = await query
+            .Skip((actualPage - 1) * actualSize)
+            .Take(actualSize)
+            .ToListAsync();
+
         Response.Headers["X-Total-Count"] = totalCount.ToString();
         Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
         var respuesta = items.Adapt<List<ClienteResponseDto>>();
@@ -88,7 +102,11 @@ public class ClientesController : ControllerBase
     public async Task<ActionResult<ClienteResponseDto>> ObtenerClientePorId(int id)
     {
         var repository = _unitOfWork.Repository<Cliente>();
-        var cliente = await repository.GetByIntIdAsync(id);
+        var cliente = await repository
+            .Find(c => c.Id == id)
+            .Include(c => c.Vehiculos)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
 
         if (cliente == null)
         {

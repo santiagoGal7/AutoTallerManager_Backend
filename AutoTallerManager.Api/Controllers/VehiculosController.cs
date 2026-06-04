@@ -48,5 +48,56 @@ public class VehiculosController : ControllerBase
         var respuesta = items.Adapt<List<VehiculoResponseDto>>();
         return Ok(respuesta);
     }
+
+    [HttpPost]
+    [Authorize(Roles = "Recepcionista,Admin")]
+    public async Task<ActionResult<VehiculoResponseDto>> CrearVehiculo([FromBody] CrearVehiculoClienteDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var clienteExiste = await _unitOfWork.Repository<Cliente>()
+            .AnyAsync(c => c.Id == dto.ClienteId);
+
+        if (!clienteExiste)
+        {
+            return NotFound(new { mensaje = "El cliente especificado no existe." });
+        }
+
+        var vinNormalizado = dto.VIN.Trim().ToUpperInvariant();
+        var vinExiste = await _unitOfWork.Repository<Vehiculo>()
+            .AnyAsync(v => v.VIN.ToUpper() == vinNormalizado);
+
+        if (vinExiste)
+        {
+            return BadRequest(new { mensaje = $"El numero VIN '{dto.VIN}' ya se encuentra registrado." });
+        }
+
+        var vehiculo = new Vehiculo
+        {
+            IdCliente = dto.ClienteId,
+            Marca = dto.Marca,
+            Modelo = dto.Modelo,
+            Anio = dto.Anio,
+            VIN = vinNormalizado,
+            HistorialesKilometraje = new List<HistorialKilometraje>
+            {
+                new()
+                {
+                    Kilometraje = dto.Kilometraje,
+                    FechaLectura = DateTime.UtcNow,
+                    OrigenLectura = "Registro Inicial"
+                }
+            }
+        };
+
+        await _unitOfWork.Repository<Vehiculo>().AddAsync(vehiculo);
+        await _unitOfWork.SaveChangesAsync();
+
+        var respuesta = vehiculo.Adapt<VehiculoResponseDto>();
+        return CreatedAtAction(nameof(ListarVehiculos), new { id = vehiculo.Id }, respuesta);
+    }
 }
 
