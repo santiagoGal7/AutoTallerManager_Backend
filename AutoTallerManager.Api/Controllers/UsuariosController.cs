@@ -47,6 +47,18 @@ public class UsuariosController : ControllerBase
             return BadRequest(ModelState);
         }
 
+        // Roles privilegiados solo los puede crear un Admin autenticado
+        var rolesPrivilegiados = new[] { "Admin", "Mecanico", "Recepcionista" };
+        var rolSolicitado = dto.Rol?.Trim() ?? string.Empty;
+
+        if (rolesPrivilegiados.Contains(rolSolicitado, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!(User.Identity?.IsAuthenticated ?? false) || !User.IsInRole("Admin"))
+            {
+                return Unauthorized(new { mensaje = "Solo un administrador autenticado puede crear usuarios con roles privilegiados (Admin, Mecanico, Recepcionista)." });
+            }
+        }
+
         try
         {
             var result = await _usuarioService.RegistrarAsync(dto);
@@ -93,6 +105,21 @@ public class UsuariosController : ControllerBase
         }
 
         return Ok(usuario);
+    }
+
+    [HttpPatch("{id}/desactivar")]
+    [Authorize(Policy = "RequireAdminRole")]
+    public async Task<IActionResult> Desactivar(int id)
+    {
+        var callerIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(callerIdClaim, out var callerId) && callerId == id)
+            return BadRequest(new { mensaje = "Un administrador no puede desactivar su propia cuenta." });
+
+        var exitoso = await _usuarioService.DesactivarAsync(id);
+        if (!exitoso)
+            return NotFound(new { mensaje = "El usuario especificado no existe." });
+
+        return Ok(new { exitoso = true, mensaje = $"Usuario id={id} desactivado correctamente." });
     }
 
     [HttpGet("perfil")]

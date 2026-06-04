@@ -22,6 +22,7 @@ public class AutoTallerDbContext : DbContext
     public DbSet<BahiaServicio> BahiasServicio => Set<BahiaServicio>();
     public DbSet<Herramienta> Herramientas => Set<Herramienta>();
     public DbSet<AuditoriaTransaccion> AuditoriaTransacciones => Set<AuditoriaTransaccion>();
+    public DbSet<MedioPago> MediosPago => Set<MedioPago>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

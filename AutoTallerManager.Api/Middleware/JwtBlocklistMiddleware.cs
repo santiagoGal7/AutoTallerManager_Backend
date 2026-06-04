@@ -3,19 +3,16 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 
 namespace AutoTallerManager.Api.Middleware;
 
 public class JwtBlocklistMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ILogger<JwtBlocklistMiddleware> _logger;
 
-    public JwtBlocklistMiddleware(RequestDelegate next, ILogger<JwtBlocklistMiddleware> logger)
+    public JwtBlocklistMiddleware(RequestDelegate next)
     {
         _next = next;
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task InvokeAsync(HttpContext context, ITokenBlocklistService blocklistService)
@@ -29,14 +26,10 @@ public class JwtBlocklistMiddleware
             if (!string.IsNullOrEmpty(jti) && await blocklistService.IsTokenBlockedAsync(jti))
             {
                 // Obtener o generar CorrelationId para mantener consistencia absoluta con el GlobalExceptionMiddleware
-                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
+                if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
                 {
                     correlationId = Guid.NewGuid().ToString();
-                    context.Request.Headers["X-Correlation-ID"] = correlationId;
                 }
-
-                _logger.LogWarning("Intento de acceso con token revocado bloqueado. [JTI: {Jti}] [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 
-                    jti, correlationId.ToString(), context.Request.Path, context.Request.Method);
 
                 context.Response.ContentType = "application/json";
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;

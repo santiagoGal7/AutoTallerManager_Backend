@@ -21,7 +21,7 @@ public class DetalleOrdenServicioConfiguration : IEntityTypeConfiguration<Detall
 
         builder.Property(dos => dos.HorasReales)
             .IsRequired(false)
-            .HasColumnType("decimal(18,2)");
+            .HasColumnType("decimal(10,2)");
 
         // Relación Muchos a Uno con la Orden Madre (Cascada: Si cae la orden, cae su desglose)
         builder.HasOne(dos => dos.OrdenServicio)

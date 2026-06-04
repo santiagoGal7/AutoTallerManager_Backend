@@ -24,12 +24,6 @@ public class GlobalExceptionMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
-        {
-            correlationId = Guid.NewGuid().ToString();
-            context.Request.Headers["X-Correlation-ID"] = correlationId;
-        }
-
         try
         {
             await _next(context);

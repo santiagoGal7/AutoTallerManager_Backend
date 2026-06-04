@@ -10,6 +10,7 @@ using AutoTallerManager.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using AspNetCoreRateLimit;
@@ -34,6 +35,24 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
     options.SuppressModelStateInvalidFilter = true;
 });
 builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendLocalhost", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:5500",
+                "http://127.0.0.1:5500",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders("X-Total-Count");
+    });
+});
 
 // CONFIGURACIÓN DE SWAGGER CON SEGURIDAD JWT BEARER
 builder.Services.AddSwaggerGen(options =>
@@ -135,21 +154,6 @@ builder.Services.AddAuthentication(options =>
         RoleClaimType = System.Security.Claims.ClaimTypes.Role,
         NameClaimType = System.Security.Claims.ClaimTypes.Name
     };
-    options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            if (!context.HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId) || string.IsNullOrEmpty(correlationId))
-            {
-                correlationId = Guid.NewGuid().ToString();
-                context.HttpContext.Request.Headers["X-Correlation-ID"] = correlationId;
-            }
-            logger.LogWarning(context.Exception, "Fallo en la autenticación JWT. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 
-                correlationId.ToString(), context.HttpContext.Request.Path, context.HttpContext.Request.Method);
-            return Task.CompletedTask;
-        }
-    };
 });
 
 // CONFIGURACIÓN DE AUTORIZACIÓN POR ROLES/POLÍTICAS
@@ -164,7 +168,6 @@ builder.Services.AddAuthorization(options =>
 // CONFIGURACIÓN DE RATE LIMITING (LIMITACIÓN DE TASA DE PETICIONES)
 builder.Services.AddOptions();
 builder.Services.AddMemoryCache();
-builder.Services.AddDistributedMemoryCache();
 
 builder.Services.Configure<IpRateLimitOptions>(options =>
 {
@@ -205,21 +208,8 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
-// Validación de Entorno (Fail-Fast)
-var envJwtSecretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
-var envDbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-
-if (string.IsNullOrWhiteSpace(envJwtSecretKey))
-{
-    throw new InvalidOperationException("La variable de entorno requerida 'JWT_SECRET_KEY' no está configurada.");
-}
-
-if (string.IsNullOrWhiteSpace(envDbConnectionString))
-{
-    throw new InvalidOperationException("La variable de entorno requerida 'DB_CONNECTION_STRING' no está configurada.");
-}
-
 var app = builder.Build();
+var frontendPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "AutoTallerManager.Frontend"));
 
 // Middleware Global de Excepciones para blindar el backend
 app.UseMiddleware<AutoTallerManager.Api.Middleware.GlobalExceptionMiddleware>();
@@ -238,7 +228,22 @@ else
     app.UseHsts(); // Habilitar Strict Transport Security (HSTS) en entornos no locales
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
+
+if (Directory.Exists(frontendPath))
+{
+    var frontendFiles = new PhysicalFileProvider(frontendPath);
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = frontendFiles
+    });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = frontendFiles
+    });
+}
+
+app.UseCors("FrontendLocalhost");
 
 // EL ORDEN ES CRUCIAL: UseAuthentication() DEBE IR ANTES DE UseAuthorization()
 app.UseAuthentication();
@@ -252,4 +257,3 @@ app.MapControllers();
 await DatabaseInitializer.InitializeDatabaseAsync(app.Services);
 
 app.Run();
-

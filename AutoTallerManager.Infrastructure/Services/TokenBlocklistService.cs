@@ -1,45 +1,42 @@
 using System;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.Interfaces;
-using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AutoTallerManager.Infrastructure.Services;
 
 public class TokenBlocklistService : ITokenBlocklistService
 {
-    private readonly IDistributedCache _distributedCache;
+    private readonly IMemoryCache _memoryCache;
     private const string CachePrefix = "revoked_token:";
 
-    public TokenBlocklistService(IDistributedCache distributedCache)
+    public TokenBlocklistService(IMemoryCache memoryCache)
     {
-        _distributedCache = distributedCache ?? throw new ArgumentNullException(nameof(distributedCache));
+        _memoryCache = memoryCache ?? throw new ArgumentNullException(nameof(memoryCache));
     }
 
-    public async Task BlockTokenAsync(string jti, TimeSpan expiry)
+    public Task BlockTokenAsync(string jti, TimeSpan expiry)
     {
         if (string.IsNullOrWhiteSpace(jti))
             throw new ArgumentException("El identificador del token (jti) no puede ser nulo o vacío.", nameof(jti));
 
         if (expiry <= TimeSpan.Zero)
-            return; // El token ya ha expirado, no es necesario cachear
+            return Task.CompletedTask; // El token ya ha expirado, no es necesario cachear
 
         var cacheKey = $"{CachePrefix}{jti}";
-        var options = new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = expiry
-        };
+        _memoryCache.Set(cacheKey, true, expiry);
 
-        await _distributedCache.SetStringAsync(cacheKey, "true", options);
+        return Task.CompletedTask;
     }
 
-    public async Task<bool> IsTokenBlockedAsync(string jti)
+    public Task<bool> IsTokenBlockedAsync(string jti)
     {
         if (string.IsNullOrWhiteSpace(jti))
-            return false;
+            return Task.FromResult(false);
 
         var cacheKey = $"{CachePrefix}{jti}";
-        var value = await _distributedCache.GetStringAsync(cacheKey);
+        var isBlocked = _memoryCache.TryGetValue(cacheKey, out _);
 
-        return value != null;
+        return Task.FromResult(isBlocked);
     }
 }

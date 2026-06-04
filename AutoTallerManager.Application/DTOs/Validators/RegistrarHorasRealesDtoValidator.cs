@@ -8,6 +8,6 @@ public class RegistrarHorasRealesDtoValidator : AbstractValidator<RegistrarHoras
     {
         RuleFor(x => x.HorasReales)
             .NotNull().WithMessage("Las horas reales son obligatorias.")
-            .GreaterThanOrEqualTo(0.0m).WithMessage("Las horas reales no pueden ser un valor negativo.");
+            .GreaterThanOrEqualTo(0).WithMessage("Las horas reales no pueden ser un valor negativo.");
     }
 }

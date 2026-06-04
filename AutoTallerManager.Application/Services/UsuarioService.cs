@@ -187,4 +187,17 @@ public class UsuarioService : IUsuarioService
         }
         return usuario.Adapt<UsuarioResponseDto>();
     }
+
+    public async Task<bool> DesactivarAsync(int id)
+    {
+        var repository = _unitOfWork.Repository<Usuario>();
+        var usuario = await repository.GetByIdAsync(id);
+        if (usuario == null)
+            return false;
+
+        usuario.Activo = false;
+        repository.Update(usuario);
+        await _unitOfWork.CompleteAsync();
+        return true;
+    }
 }

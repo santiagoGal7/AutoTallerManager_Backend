@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace AutoTallerManager.Api.Controllers;
 
 [ApiController]
-[Route("api/serviciostaller")]
+[Route("api/servicios-taller")]
 [Authorize]
 public class ServiciosTallerController : ControllerBase
 {

@@ -452,7 +452,7 @@ namespace AutoTallerManager.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<decimal?>("HorasReales")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<int>("IdOrdenServicio")
                         .HasColumnType("integer")

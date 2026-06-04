@@ -31,3 +31,5 @@ log/
 # Local environment secrets
 .env
 
+# Local verification output
+.verify-build/

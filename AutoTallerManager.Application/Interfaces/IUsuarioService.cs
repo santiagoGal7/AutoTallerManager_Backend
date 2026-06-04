@@ -11,4 +11,5 @@ public interface IUsuarioService
     Task<UsuarioResponseDto> RegistrarAsync(RegistroDto dto);
     Task<IEnumerable<UsuarioResponseDto>> ObtenerTodosAsync();
     Task<UsuarioResponseDto?> ObtenerPorIdAsync(int id);
+    Task<bool> DesactivarAsync(int id);
 }

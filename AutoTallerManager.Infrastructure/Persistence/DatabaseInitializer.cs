@@ -58,6 +58,9 @@ namespace AutoTallerManager.Infrastructure.Persistence
             // 4. Sembrado de Catálogo de Repuestos
             await SeedSparePartsCatalogAsync(context, logger);
 
+            // 5. Sembrado de Medios de Pago
+            await SeedMediosPagoAsync(context, logger);
+
             logger.LogInformation("--> [SEEDING] Proceso de sembrado de datos de catálogo base finalizado correctamente.");
         }
 
@@ -166,6 +169,33 @@ namespace AutoTallerManager.Infrastructure.Persistence
             else
             {
                 logger.LogInformation("--> [SEEDING] Catálogo de servicios ya cuenta con registros. Se omite el sembrado.");
+            }
+        }
+
+        private static async Task SeedMediosPagoAsync(AutoTallerDbContext context, ILogger<AutoTallerDbContext> logger)
+        {
+            var hasMediosPago = await context.MediosPago.AnyAsync();
+
+            if (!hasMediosPago)
+            {
+                logger.LogInformation("--> [SEEDING] Tabla de medios de pago vacía. Sembrando catálogo base...");
+
+                var medios = new List<MedioPago>
+                {
+                    new MedioPago { Nombre = "Efectivo", PermiteCuotas = false, Activo = true },
+                    new MedioPago { Nombre = "Tarjeta de Crédito", PermiteCuotas = true, Activo = true },
+                    new MedioPago { Nombre = "Tarjeta de Débito", PermiteCuotas = false, Activo = true },
+                    new MedioPago { Nombre = "Transferencia Bancaria", PermiteCuotas = false, Activo = true }
+                };
+
+                await context.MediosPago.AddRangeAsync(medios);
+                await context.SaveChangesAsync();
+
+                logger.LogInformation("--> [SEEDING] Medios de pago sembrados exitosamente ({Count} registros).", medios.Count);
+            }
+            else
+            {
+                logger.LogInformation("--> [SEEDING] Medios de pago ya cuentan con registros. Se omite el sembrado.");
             }
         }
 

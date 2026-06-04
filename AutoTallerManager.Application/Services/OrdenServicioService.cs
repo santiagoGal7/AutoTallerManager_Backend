@@ -90,7 +90,7 @@ public class OrdenServicioService : IOrdenServicioService
             {
                 IdOrdenServicio = dto.OrdenServicioId,
                 IdServicioTaller = dto.ServicioTallerId,
-                PrecioManoObraHistorico = dto.PrecioManoObraHistorico,
+                PrecioManoObraHistorico = servicio.TarifaBaseManoObra,
                 HorasEstimadas = dto.HorasEstimadas
             };
 
@@ -413,10 +413,5 @@ public class OrdenServicioService : IOrdenServicioService
             await _unitOfWork.RollbackTransactionAsync();
             throw;
         }
-    }
-
-    public async Task<(IEnumerable<OrdenServicio> Items, int TotalCount)> GetMisOrdenesPaginadoAsync(int usuarioId, int pageNumber, int pageSize)
-    {
-        return await _unitOfWork.GetOrdenesUsuarioPaginadoAsync(usuarioId, pageNumber, pageSize);
     }
 }

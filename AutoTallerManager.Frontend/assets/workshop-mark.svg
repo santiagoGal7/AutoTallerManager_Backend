@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" role="img" aria-label="Marca de taller">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#99f6e4" stop-opacity=".62"/>
+    </linearGradient>
+  </defs>
+  <path fill="none" stroke="url(#g)" stroke-linecap="round" stroke-linejoin="round" stroke-width="26" d="M133 414h48l45-86c12-23 31-35 56-35h154c25 0 44 12 56 35l45 86h50c22 0 39 17 39 39v65c0 18-14 32-32 32h-32c-8 30-35 52-67 52s-59-22-67-52H294c-8 30-35 52-67 52s-59-22-67-52h-33c-17 0-31-14-31-32v-65c0-22 17-39 37-39Z"/>
+  <path fill="none" stroke="url(#g)" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="m250 414 31-60h156l31 60M204 550a31 31 0 1 0 62 0 31 31 0 0 0-62 0Zm463 0a31 31 0 1 0-62 0 31 31 0 0 0 62 0ZM255 207l58 58m207-58-58 58m-104-86v82"/>
+  <path fill="none" stroke="#f59e0b" stroke-linecap="round" stroke-width="18" d="M145 183c52-57 126-90 205-90 95 0 181 47 232 122"/>
+</svg>
