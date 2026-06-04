@@ -22,7 +22,7 @@ public class VehiculosController : ControllerBase
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
     }
 
-    [HttpGet("listar-vehiculos")]
+    [HttpGet]
     [Authorize(Roles = "Recepcionista,Mecanico,Admin")]
     public async Task<IActionResult> ListarVehiculos([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {

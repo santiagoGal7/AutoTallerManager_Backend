@@ -1,6 +1,11 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using AutoTallerManager.Application.Interfaces;
+using AutoTallerManager.Domain.Entities;
 using AutoTallerManager.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AutoTallerManager.Infrastructure.Repositories;
 
@@ -85,4 +90,23 @@ public class UnitOfWork : IUnitOfWork
         }
     }
 
+    public async Task<(IEnumerable<OrdenServicio> Items, int TotalCount)> GetOrdenesUsuarioPaginadoAsync(int usuarioId, int pageNumber, int pageSize)
+    {
+        var query = _context.OrdenesServicio
+            .Include(o => o.Vehiculo)
+            .Include(o => o.DetallesServicio)
+            .Include(o => o.DetallesRepuesto)
+            .Where(o => o.Vehiculo.Cliente.UsuarioId == usuarioId);
+
+        var totalCount = await query.CountAsync();
+        var actualPage = pageNumber < 1 ? 1 : pageNumber;
+        var actualSize = pageSize < 1 ? 10 : pageSize;
+
+        var items = await query
+            .Skip((actualPage - 1) * actualSize)
+            .Take(actualSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
 }

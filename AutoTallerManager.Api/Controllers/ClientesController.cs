@@ -57,20 +57,6 @@ public class ClientesController : ControllerBase
         return Ok(respuesta);
     }
 
-    [HttpGet("listar-vehiculos")]
-    [Authorize(Roles = "Recepcionista,Mecanico,Admin")]
-    public async Task<IActionResult> ListarVehiculos([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
-    {
-        // Usar el repositorio para traer los carros reales de Supabase de forma paginada
-        var (items, totalCount) = await _unitOfWork.Repository<Vehiculo>().GetAllPagedAsync(pageNumber, pageSize);
-        Response.Headers["X-Total-Count"] = totalCount.ToString();
-        Response.Headers["Access-Control-Expose-Headers"] = "X-Total-Count";
-        
-        // Mapear para evitar problemas de referencias circulares JSON
-        var respuesta = items.Adapt<List<VehiculoResponseDto>>();
-        
-        return Ok(respuesta);
-    }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ClienteResponseDto>> ObtenerClientePorId(int id)

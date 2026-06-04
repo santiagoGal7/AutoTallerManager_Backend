@@ -135,6 +135,20 @@ builder.Services.AddAuthentication(options =>
         RoleClaimType = System.Security.Claims.ClaimTypes.Role,
         NameClaimType = System.Security.Claims.ClaimTypes.Name
     };
+    options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            if (!context.HttpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
+            {
+                correlationId = Guid.NewGuid().ToString();
+            }
+            logger.LogWarning(context.Exception, "Fallo en la autenticación JWT. [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 
+                correlationId.ToString(), context.HttpContext.Request.Path, context.HttpContext.Request.Method);
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // CONFIGURACIÓN DE AUTORIZACIÓN POR ROLES/POLÍTICAS
@@ -149,6 +163,7 @@ builder.Services.AddAuthorization(options =>
 // CONFIGURACIÓN DE RATE LIMITING (LIMITACIÓN DE TASA DE PETICIONES)
 builder.Services.AddOptions();
 builder.Services.AddMemoryCache();
+builder.Services.AddDistributedMemoryCache();
 
 builder.Services.Configure<IpRateLimitOptions>(options =>
 {

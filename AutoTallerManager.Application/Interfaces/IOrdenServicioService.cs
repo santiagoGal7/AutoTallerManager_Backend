@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.DTOs;
+using AutoTallerManager.Domain.Entities;
 
 namespace AutoTallerManager.Application.Interfaces;
 
@@ -13,4 +15,5 @@ public interface IOrdenServicioService
     Task<bool> AsignarMecanicoAsync(int ordenId, int mecanicoId);
     Task<bool> RegistrarDiagnosticoAsync(int ordenId, string diagnostico);
     Task<bool> RegistrarHorasRealesAsync(int detalleId, int horasReales);
+    Task<(IEnumerable<OrdenServicio> Items, int TotalCount)> GetMisOrdenesPaginadoAsync(int usuarioId, int pageNumber, int pageSize);
 }

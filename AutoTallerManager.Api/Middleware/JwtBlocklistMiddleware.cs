@@ -3,16 +3,19 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using AutoTallerManager.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace AutoTallerManager.Api.Middleware;
 
 public class JwtBlocklistMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ILogger<JwtBlocklistMiddleware> _logger;
 
-    public JwtBlocklistMiddleware(RequestDelegate next)
+    public JwtBlocklistMiddleware(RequestDelegate next, ILogger<JwtBlocklistMiddleware> logger)
     {
         _next = next;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task InvokeAsync(HttpContext context, ITokenBlocklistService blocklistService)
@@ -30,6 +33,9 @@ public class JwtBlocklistMiddleware
                 {
                     correlationId = Guid.NewGuid().ToString();
                 }
+
+                _logger.LogWarning("Intento de acceso con token revocado bloqueado. [JTI: {Jti}] [CorrelationId: {CorrelationId}] [Path: {Path}] [Method: {Method}]", 
+                    jti, correlationId.ToString(), context.Request.Path, context.Request.Method);
 
                 context.Response.ContentType = "application/json";
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
